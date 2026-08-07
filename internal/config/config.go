@@ -146,7 +146,7 @@ func (c Config) Snapshot() model.ConfigSnapshot {
 		Profile:          c.Profile,
 		Weights:          c.Weights,
 		OwnershipEnabled: c.EnableOwnership,
-		GitHubEnabled:    c.EnableCollaboration,
+		GitHubEnabled:    false,
 		Privacy:          c.Privacy,
 		Fingerprint:      c.Fingerprint(),
 		CategoryWeights:  c.CategoryWeights,

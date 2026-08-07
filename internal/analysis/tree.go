@@ -105,13 +105,12 @@ func (a *Analyzer) scanOwnership(ctx context.Context, repository, ref string, cf
 	}()
 
 	var completed int64
+	var ownershipErrors int64
 	for result := range results {
 		completed++
 		if result.err != nil {
 			agg.skipped++
-			if len(agg.warnings) < 8 {
-				agg.warnings = append(agg.warnings, fmt.Sprintf("无法分析某个文件的代码归属：%v", result.err))
-			}
+			ownershipErrors++
 		} else {
 			agg.analyzed++
 			for _, owned := range result.ownership {
@@ -124,5 +123,8 @@ func (a *Analyzer) scanOwnership(ctx context.Context, repository, ref string, cf
 			percent := 48 + float64(completed)/float64(len(files))*40
 			progress(model.Progress{Phase: "ownership", Message: fmt.Sprintf("已分析 %d / %d 个文件", completed, len(files)), Current: completed, Total: int64(len(files)), Percent: percent})
 		}
+	}
+	if ownershipErrors > 0 {
+		agg.warnings = append(agg.warnings, fmt.Sprintf("有 %d 个文件无法完成代码归属分析，已从归属指标中排除。", ownershipErrors))
 	}
 }

@@ -52,8 +52,10 @@ repolens version
 Analysis is read-only and local. RepoLens never checks out files or executes
 repository code. Export configuration controls repository name, commit messages,
 directory names, contributor identities, avatars, and commit hashes. Email
-addresses, source snippets, absolute paths, credentials, and file names are
-never exported.
+addresses, source snippets, absolute paths, credentials, and structured
+file-name fields are never exported. Commit messages are user-authored text and
+may themselves mention a path or file name; disable commit messages for a
+strict public report.
 
 ## Contribution model
 
@@ -80,4 +82,3 @@ sync are planned for the next milestone.
 ## License
 
 MIT
-

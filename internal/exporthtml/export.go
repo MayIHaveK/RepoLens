@@ -40,6 +40,7 @@ func clone(source *model.Analysis) *model.Analysis {
 }
 
 func applyPrivacy(analysis *model.Analysis, privacy model.Privacy) {
+	analysis.ID = "offline-report"
 	analysis.Config.Privacy = privacy
 	if !privacy.ShowRepositoryName {
 		analysis.Repository.Name = "私有仓库"
@@ -47,9 +48,13 @@ func applyPrivacy(analysis *model.Analysis, privacy model.Privacy) {
 	if !privacy.ShowCommitSHA {
 		analysis.Repository.CommitSHA = ""
 	}
+	identityMap := map[string]string{}
 	for index := range analysis.Contributors {
 		contributor := &analysis.Contributors[index]
 		if !privacy.ShowContributors {
+			anonymousID := fmt.Sprintf("contributor-%02d", index+1)
+			identityMap[contributor.ID] = anonymousID
+			contributor.ID = anonymousID
 			contributor.Name = fmt.Sprintf("贡献者 %02d", index+1)
 			contributor.AvatarURL = ""
 		} else if !privacy.ShowAvatars {
@@ -65,6 +70,20 @@ func applyPrivacy(analysis *model.Analysis, privacy model.Privacy) {
 			if !privacy.ShowCommitSHA {
 				contributor.RecentCommits[commitIndex].SHA = ""
 			}
+		}
+	}
+	if !privacy.ShowContributors {
+		for index := range analysis.Timeline {
+			if analysis.Timeline[index].Contributors == nil {
+				continue
+			}
+			anonymous := make(map[string]model.Change, len(analysis.Timeline[index].Contributors))
+			for id, change := range analysis.Timeline[index].Contributors {
+				if replacement, ok := identityMap[id]; ok {
+					anonymous[replacement] = change
+				}
+			}
+			analysis.Timeline[index].Contributors = anonymous
 		}
 	}
 }

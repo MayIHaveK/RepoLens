@@ -51,7 +51,7 @@ export function Settings({ config, onChange }: Props) {
         </div>
       </SettingsSection>
 
-      <SettingsSection icon={<LockKeyhole />} title="默认导出隐私" description="源代码、文件名、邮箱、本机路径和凭据始终不会导出。">
+      <SettingsSection icon={<LockKeyhole />} title="默认导出隐私" description="源代码、结构化文件名、邮箱、本机路径和凭据始终不会导出。">
         <div className="toggle-list two-columns">
           <Toggle label="仓库名称" checked={config.privacy.showRepositoryName} onChange={(value) => setPrivacy('showRepositoryName', value)} />
           <Toggle label="贡献者名称" checked={config.privacy.showContributors} onChange={(value) => setPrivacy('showContributors', value)} />

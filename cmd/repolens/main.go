@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/repolens/repolens/internal/analysis"
@@ -90,16 +91,27 @@ func analyze(arguments []string) error {
 	ref := flags.String("ref", "HEAD", "Git ref to analyze")
 	output := flags.String("output", "repolens-analysis.json", "output JSON file")
 	profile := flags.String("profile", "balanced", "fast, balanced, or thorough")
+	repository := ""
+	if len(arguments) > 0 && !strings.HasPrefix(arguments[0], "-") {
+		repository = arguments[0]
+		arguments = arguments[1:]
+	}
 	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
-	if flags.NArg() != 1 {
+	if repository == "" {
+		if flags.NArg() == 1 {
+			repository = flags.Arg(0)
+		} else {
+			return errors.New("usage: repolens analyze <repository>")
+		}
+	} else if flags.NArg() != 0 {
 		return errors.New("usage: repolens analyze <repository>")
 	}
 	cfg := config.Default()
 	cfg.Ref = *ref
 	cfg.Profile = *profile
-	result, err := analysis.New().Analyze(context.Background(), flags.Arg(0), cfg, func(progress model.Progress) {
+	result, err := analysis.New().Analyze(context.Background(), repository, cfg, func(progress model.Progress) {
 		fmt.Printf("\r%-12s %5.1f%%  %s", progress.Phase, progress.Percent, progress.Message)
 	})
 	fmt.Println()
