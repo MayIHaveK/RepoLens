@@ -1,0 +1,13 @@
+/.idea/
+/.vscode/
+/.cache/
+/bin/
+/coverage/
+/web/node_modules/
+/web/dist/
+/internal/server/web/*
+!/internal/server/web/.gitkeep
+*.exe
+*.log
+*.tmp
+
