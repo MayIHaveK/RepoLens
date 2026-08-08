@@ -1,5 +1,9 @@
 # RepoLens
 
+[![CI](https://github.com/MayIHaveK/RepoLens/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/MayIHaveK/RepoLens/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/MayIHaveK/RepoLens)](https://github.com/MayIHaveK/RepoLens/releases)
+[![License](https://img.shields.io/github/license/MayIHaveK/RepoLens)](LICENSE)
+
 RepoLens is a local-first Git contribution analyzer for teams that need a
 clear, reproducible view of engineering work without uploading private source
 code. It separates historical workload, current code ownership, retained code,
@@ -9,15 +13,25 @@ and collaboration signals instead of reducing contribution to commit counts.
 
 - Streams Git history instead of loading every diff into memory.
 - Computes current ownership with a bounded blame worker pool.
+- Cancels long-running analysis cleanly, including active Git subprocesses.
 - Excludes generated, vendored, binary, and oversized files by configurable rules.
 - Merges contributor aliases and recognizes co-authored commits.
 - Exports a self-contained offline HTML report with privacy controls.
-- Keeps analysis local. Source snippets and file names are never part of reports.
+- Keeps analysis local. Source snippets and structured file names are never part of reports.
 - Provides Fast, Balanced, and Thorough performance profiles.
 
 ## Quick start
 
-Requirements: Git 2.40+, Go 1.24+, and Node.js 20+ for frontend development.
+For Windows, download `repolens-windows-amd64.exe` from the
+[latest release](https://github.com/MayIHaveK/RepoLens/releases/latest), then run:
+
+```powershell
+.\repolens-windows-amd64.exe serve
+```
+
+RepoLens opens at `http://127.0.0.1:41739` and listens only on loopback.
+
+To build from source, install Git 2.40+, Go 1.26+, and Node.js 24+:
 
 ```powershell
 cd web
@@ -27,8 +41,9 @@ cd ..
 go run ./cmd/repolens serve
 ```
 
-Open `http://127.0.0.1:41739`. The production build is a single executable with
-the frontend embedded.
+The production build is a single executable with the frontend embedded. On
+Windows, `scripts/build.ps1` performs a clean frontend install, checks both
+codebases, runs tests, and creates `bin/repolens.exe`.
 
 For frontend development, run the API and Vite separately:
 
@@ -68,6 +83,17 @@ The default composite score combines normalized shares:
 
 Every dimension is also shown separately. Weights are user configurable and
 renormalized when an optional data source is unavailable.
+
+Category weights, performance limits, bot patterns, generated and vendored
+rules, contributor aliases, and export privacy are all configurable in the UI.
+
+## Large repositories
+
+The Fast profile skips line ownership for quick history-only results. Balanced
+uses bounded concurrency, file-size limits, and an ownership-file cap. Thorough
+removes the ownership-file cap. Repeated analysis at the same commit and
+configuration fingerprint uses the local result cache. Active analysis can be
+stopped from the UI without leaving Git subprocesses running.
 
 See [docs/METHODOLOGY.md](docs/METHODOLOGY.md) for the precise definitions and
 limitations.

@@ -87,10 +87,9 @@ export interface Analysis {
 
 export interface Job {
   id: string
-  status: 'queued' | 'running' | 'complete' | 'failed'
+  status: 'queued' | 'running' | 'complete' | 'failed' | 'cancelled'
   progress: { phase: string; message: string; current: number; total: number; percent: number }
   analysisId?: string
   error?: string
   cached: boolean
 }
-

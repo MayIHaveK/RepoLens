@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/repolens/repolens/internal/model"
+	"github.com/MayIHaveK/RepoLens/internal/model"
 )
 
 func TestSaveAndLoad(t *testing.T) {

@@ -1,5 +1,5 @@
-import { Gauge, GitPullRequest as Github, LockKeyhole, Scale, SlidersHorizontal } from 'lucide-react'
-import type { Config, Privacy, Weights } from '../types'
+import { Gauge, GitPullRequest as Github, LockKeyhole, Scale, SlidersHorizontal, Tags, UserRoundCog } from 'lucide-react'
+import type { Category, Config, Privacy, Weights } from '../types'
 import { Toggle } from './Toggle'
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
 export function Settings({ config, onChange }: Props) {
   const set = <K extends keyof Config>(key: K, value: Config[K]) => onChange({ ...config, [key]: value })
   const setWeight = (key: keyof Weights, value: number) => set('weights', { ...config.weights, [key]: value })
+  const setCategoryWeight = (key: Category, value: number) => set('categoryWeights', { ...config.categoryWeights, [key]: value })
   const setPrivacy = (key: keyof Privacy, value: boolean) => set('privacy', { ...config.privacy, [key]: value })
   const weightTotal = Object.values(config.weights).reduce((sum, value) => sum + value, 0)
   return (
@@ -21,6 +22,15 @@ export function Settings({ config, onChange }: Props) {
         <Range label="当前所有权" value={config.weights.ownership} onChange={(value) => setWeight('ownership', value)} color="#3f6ed8" />
         <Range label="留存贡献" value={config.weights.retention} onChange={(value) => setWeight('retention', value)} color="#d6a11f" />
         <Range label="协作贡献" value={config.weights.collaboration} onChange={(value) => setWeight('collaboration', value)} color="#e7664c" />
+      </SettingsSection>
+
+      <SettingsSection icon={<Tags />} title="代码类型权重" description="控制不同类型变更对有效工作量的影响，不改变原始行数。">
+        <Range label="源代码" value={config.categoryWeights.source} onChange={(value) => setCategoryWeight('source', value)} color="#008f83" />
+        <Range label="测试" value={config.categoryWeights.test} onChange={(value) => setCategoryWeight('test', value)} color="#3f6ed8" />
+        <Range label="文档" value={config.categoryWeights.docs} onChange={(value) => setCategoryWeight('docs', value)} color="#d6a11f" />
+        <Range label="配置" value={config.categoryWeights.config} onChange={(value) => setCategoryWeight('config', value)} color="#e7664c" />
+        <Range label="资源" value={config.categoryWeights.asset} onChange={(value) => setCategoryWeight('asset', value)} color="#8a60a8" />
+        <Range label="其他" value={config.categoryWeights.other} onChange={(value) => setCategoryWeight('other', value)} color="#66717d" />
       </SettingsSection>
 
       <SettingsSection icon={<Gauge />} title="性能与精度" description="平衡模式适合大多数项目，完整模式可能在超大仓库上耗时较长。">
@@ -48,7 +58,12 @@ export function Settings({ config, onChange }: Props) {
           <label><span>忽略文件</span><textarea value={config.ignoredPatterns.join('\n')} onChange={(e) => set('ignoredPatterns', lines(e.target.value))} /></label>
           <label><span>生成文件</span><textarea value={config.generatedPatterns.join('\n')} onChange={(e) => set('generatedPatterns', lines(e.target.value))} /></label>
           <label><span>第三方代码</span><textarea value={config.vendoredPatterns.join('\n')} onChange={(e) => set('vendoredPatterns', lines(e.target.value))} /></label>
+          <label><span>机器人名称片段</span><textarea value={config.botPatterns.join('\n')} onChange={(e) => set('botPatterns', lines(e.target.value))} /></label>
         </div>
+      </SettingsSection>
+
+      <SettingsSection icon={<UserRoundCog />} title="贡献者身份归并" description="把历史用户名或邮箱归并到同一身份，每行使用“旧身份 = 统一身份”。">
+        <label className="alias-field"><span>身份别名</span><textarea placeholder="old@example.com = developer@example.com" value={formatAliases(config.aliases)} onChange={(e) => set('aliases', parseAliases(e.target.value))} /></label>
       </SettingsSection>
 
       <SettingsSection icon={<LockKeyhole />} title="默认导出隐私" description="源代码、结构化文件名、邮箱、本机路径和凭据始终不会导出。">
@@ -75,4 +90,20 @@ function Range({ label, value, onChange, color }: { label: string; value: number
 
 function lines(value: string) {
   return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+}
+
+function formatAliases(aliases: Record<string, string>) {
+  return Object.entries(aliases).sort(([left], [right]) => left.localeCompare(right)).map(([source, target]) => `${source} = ${target}`).join('\n')
+}
+
+function parseAliases(value: string) {
+  const aliases: Record<string, string> = {}
+  for (const line of lines(value)) {
+    const separator = line.indexOf('=')
+    if (separator <= 0) continue
+    const source = line.slice(0, separator).trim()
+    const target = line.slice(separator + 1).trim()
+    if (source && target) aliases[source] = target
+  }
+  return aliases
 }

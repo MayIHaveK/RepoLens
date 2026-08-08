@@ -1,0 +1,35 @@
+name: Bug report
+description: Report reproducible incorrect behavior in RepoLens
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include private source code, repository paths, credentials, or email addresses.
+  - type: input
+    id: version
+    attributes:
+      label: RepoLens version
+      placeholder: Output of repolens version
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [Windows, macOS, Linux]
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Include expected behavior and sanitized reproduction steps.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      render: text
+

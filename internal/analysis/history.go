@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/repolens/repolens/internal/config"
-	"github.com/repolens/repolens/internal/filter"
-	"github.com/repolens/repolens/internal/gitutil"
-	"github.com/repolens/repolens/internal/model"
+	"github.com/MayIHaveK/RepoLens/internal/config"
+	"github.com/MayIHaveK/RepoLens/internal/filter"
+	"github.com/MayIHaveK/RepoLens/internal/gitutil"
+	"github.com/MayIHaveK/RepoLens/internal/model"
 )
 
 const commitMarker = "@@REPOLENS@@"

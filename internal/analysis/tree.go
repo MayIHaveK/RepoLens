@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/repolens/repolens/internal/config"
-	"github.com/repolens/repolens/internal/filter"
-	"github.com/repolens/repolens/internal/model"
+	"github.com/MayIHaveK/RepoLens/internal/config"
+	"github.com/MayIHaveK/RepoLens/internal/filter"
+	"github.com/MayIHaveK/RepoLens/internal/model"
 )
 
 func (a *Analyzer) scanTree(ctx context.Context, repository, ref string, cfg config.Config, classifier filter.Classifier, agg *aggregate) ([]treeFile, error) {

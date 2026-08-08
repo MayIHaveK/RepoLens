@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BarChart3, Clock3, Download, FlaskConical, FolderGit2, GitPullRequest as Github, LayoutDashboard, Play, RotateCcw, Settings as SettingsIcon, SlidersHorizontal, Users, XCircle } from 'lucide-react'
+import { BarChart3, CircleStop, Clock3, Download, FlaskConical, FolderGit2, GitPullRequest as Github, LayoutDashboard, Play, RotateCcw, Settings as SettingsIcon, SlidersHorizontal, Users, XCircle } from 'lucide-react'
 import { api } from './api'
 import { Contributors, Overview, Trends } from './components/Dashboard'
 import { ExportDialog } from './components/ExportDialog'
@@ -30,7 +30,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!job || job.status === 'complete' || job.status === 'failed') return
+    if (!job || job.status === 'complete' || job.status === 'failed' || job.status === 'cancelled') return
     const timer = window.setTimeout(async () => {
       try {
         const next = await api.job(job.id)
@@ -66,6 +66,15 @@ export default function App() {
     setJob(null)
     setError('')
     setView('overview')
+  }
+
+  const cancelAnalysis = async () => {
+    if (!job || (job.status !== 'queued' && job.status !== 'running')) return
+    try {
+      setJob(await api.cancelJob(job.id))
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '无法停止分析任务')
+    }
   }
 
   if (!config) {
@@ -104,7 +113,9 @@ export default function App() {
           <div className="segmented">
             {(['fast', 'balanced', 'thorough'] as const).map((profile) => <button key={profile} className={config.profile === profile ? 'active' : ''} onClick={() => setConfig({ ...config, profile })}>{profile === 'fast' ? '快速' : profile === 'balanced' ? '平衡' : '完整'}</button>)}
           </div>
-          <button className="button primary analyze-button" disabled={running || !repositoryPath.trim()} onClick={startAnalysis}><Play />{running ? '正在分析' : '开始分析'}</button>
+          {running
+            ? <button className="button stop analyze-button" onClick={cancelAnalysis}><CircleStop />停止分析</button>
+            : <button className="button primary analyze-button" disabled={!repositoryPath.trim()} onClick={startAnalysis}><Play />开始分析</button>}
           {running && job && <div className="job-progress"><div><span>{job.progress.message}</span><b>{job.progress.percent.toFixed(0)}%</b></div><span className="progress-track"><i style={{ width: `${job.progress.percent}%` }} /></span></div>}
           {error && <div className="error-message"><XCircle /><span>{error}</span></div>}
         </section>

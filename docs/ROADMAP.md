@@ -6,6 +6,7 @@
 - Current ownership and retained contribution
 - Local dashboard, result cache, and standalone HTML export
 - Windows-first single-binary release
+- Cancellable analysis jobs and configurable identity aliases
 
 ## 0.2 GitHub enhancement
 
@@ -23,4 +24,3 @@
 
 Roadmap items are directional rather than promises. Contribution metric changes
 will remain versioned and documented.
-

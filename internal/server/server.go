@@ -17,11 +17,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/repolens/repolens/internal/analysis"
-	"github.com/repolens/repolens/internal/config"
-	"github.com/repolens/repolens/internal/exporthtml"
-	"github.com/repolens/repolens/internal/model"
-	"github.com/repolens/repolens/internal/storage"
+	"github.com/MayIHaveK/RepoLens/internal/analysis"
+	"github.com/MayIHaveK/RepoLens/internal/config"
+	"github.com/MayIHaveK/RepoLens/internal/exporthtml"
+	"github.com/MayIHaveK/RepoLens/internal/model"
+	"github.com/MayIHaveK/RepoLens/internal/storage"
 )
 
 //go:embed all:web
@@ -32,6 +32,7 @@ type Server struct {
 	store    *storage.Store
 	logger   *slog.Logger
 	jobs     map[string]*Job
+	cancels  map[string]context.CancelFunc
 	mu       sync.RWMutex
 }
 
@@ -62,7 +63,7 @@ func New(store *storage.Store, logger *slog.Logger) *Server {
 	}
 	return &Server{
 		analyzer: analysis.New(), store: store, logger: logger,
-		jobs: map[string]*Job{},
+		jobs: map[string]*Job{}, cancels: map[string]context.CancelFunc{},
 	}
 }
 
@@ -72,6 +73,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/config/default", s.handleDefaultConfig)
 	mux.HandleFunc("POST /api/jobs", s.handleCreateJob)
 	mux.HandleFunc("GET /api/jobs/{id}", s.handleJob)
+	mux.HandleFunc("DELETE /api/jobs/{id}", s.handleCancelJob)
 	mux.HandleFunc("GET /api/analyses/{id}", s.handleAnalysis)
 	mux.HandleFunc("GET /api/analyses", s.handleRecent)
 	mux.HandleFunc("POST /api/export", s.handleExport)
@@ -106,39 +108,71 @@ func (s *Server) handleCreateJob(w http.ResponseWriter, request *http.Request) {
 		ID: newID(), Status: "queued", Progress: model.Progress{Phase: "queued", Message: "等待分析", Percent: 0},
 		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	s.mu.Lock()
 	s.jobs[job.ID] = job
+	s.cancels[job.ID] = cancel
 	s.mu.Unlock()
-	go s.runJob(context.Background(), job.ID, input.RepositoryPath, cfg)
+	go s.runJob(ctx, job.ID, input.RepositoryPath, cfg)
 	writeJSON(w, http.StatusAccepted, job)
 }
 
 func (s *Server) runJob(ctx context.Context, jobID, repository string, cfg config.Config) {
+	defer s.releaseJob(jobID)
 	s.updateJob(jobID, func(job *Job) {
-		job.Status = "running"
-		job.Progress = model.Progress{Phase: "cache", Message: "正在检查分析缓存", Percent: 1}
+		if job.Status != "cancelled" {
+			job.Status = "running"
+			job.Progress = model.Progress{Phase: "cache", Message: "正在检查分析缓存", Percent: 1}
+		}
 	})
 	cacheKey, err := s.analyzer.CacheKey(ctx, repository, cfg)
+	if ctx.Err() != nil {
+		s.updateJob(jobID, func(job *Job) {
+			job.Status = "cancelled"
+			job.Progress = model.Progress{Phase: "cancelled", Message: "分析已停止", Percent: job.Progress.Percent}
+		})
+		return
+	}
 	if err == nil {
 		if cached, loadErr := s.store.Load(cacheKey); loadErr == nil {
 			s.updateJob(jobID, func(job *Job) {
-				job.Status = "complete"
-				job.Cached = true
-				job.AnalysisID = cached.ID
-				job.Progress = model.Progress{Phase: "complete", Message: "已载入缓存结果", Current: 1, Total: 1, Percent: 100}
+				if job.Status != "cancelled" {
+					job.Status = "complete"
+					job.Cached = true
+					job.AnalysisID = cached.ID
+					job.Progress = model.Progress{Phase: "complete", Message: "已载入缓存结果", Current: 1, Total: 1, Percent: 100}
+				}
 			})
 			return
 		}
 	}
 
 	result, err := s.analyzer.Analyze(ctx, repository, cfg, func(progress model.Progress) {
-		s.updateJob(jobID, func(job *Job) { job.Progress = progress })
+		s.updateJob(jobID, func(job *Job) {
+			if job.Status != "cancelled" {
+				job.Progress = progress
+			}
+		})
 	})
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			s.updateJob(jobID, func(job *Job) {
+				job.Status = "cancelled"
+				job.Progress = model.Progress{Phase: "cancelled", Message: "分析已停止", Percent: job.Progress.Percent}
+			})
+			return
+		}
 		s.logger.Error("analysis failed", "job", jobID, "error", err)
 		s.updateJob(jobID, func(job *Job) {
 			job.Status = "failed"
 			job.Error = err.Error()
+		})
+		return
+	}
+	if ctx.Err() != nil {
+		s.updateJob(jobID, func(job *Job) {
+			job.Status = "cancelled"
+			job.Progress = model.Progress{Phase: "cancelled", Message: "分析已停止", Percent: job.Progress.Percent}
 		})
 		return
 	}
@@ -150,6 +184,12 @@ func (s *Server) runJob(ctx context.Context, jobID, repository string, cfg confi
 		job.AnalysisID = result.ID
 		job.Progress = model.Progress{Phase: "complete", Message: "分析完成", Current: 1, Total: 1, Percent: 100}
 	})
+}
+
+func (s *Server) releaseJob(id string) {
+	s.mu.Lock()
+	delete(s.cancels, id)
+	s.mu.Unlock()
 }
 
 func (s *Server) updateJob(id string, update func(*Job)) {
@@ -174,6 +214,32 @@ func (s *Server) handleJob(w http.ResponseWriter, request *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, job)
+}
+
+func (s *Server) handleCancelJob(w http.ResponseWriter, request *http.Request) {
+	s.mu.Lock()
+	job := s.jobs[request.PathValue("id")]
+	if job == nil {
+		s.mu.Unlock()
+		writeError(w, http.StatusNotFound, "analysis job not found")
+		return
+	}
+	if job.Status != "queued" && job.Status != "running" {
+		copy := *job
+		s.mu.Unlock()
+		writeJSON(w, http.StatusConflict, &copy)
+		return
+	}
+	cancel := s.cancels[job.ID]
+	job.Status = "cancelled"
+	job.Progress = model.Progress{Phase: "cancelled", Message: "分析已停止", Percent: job.Progress.Percent}
+	job.UpdatedAt = time.Now().UTC()
+	copy := *job
+	s.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	writeJSON(w, http.StatusOK, &copy)
 }
 
 func (s *Server) handleAnalysis(w http.ResponseWriter, request *http.Request) {
@@ -259,7 +325,7 @@ func (s *Server) middleware(next http.Handler) http.Handler {
 		if origin := request.Header.Get("Origin"); origin == "http://127.0.0.1:5173" || origin == "http://localhost:5173" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		}
 		if request.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

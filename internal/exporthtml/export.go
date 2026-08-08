@@ -7,7 +7,7 @@ import (
 	"html/template"
 	"time"
 
-	"github.com/repolens/repolens/internal/model"
+	"github.com/MayIHaveK/RepoLens/internal/model"
 )
 
 func Render(source *model.Analysis, privacy model.Privacy) ([]byte, error) {

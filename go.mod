@@ -1,4 +1,4 @@
-module github.com/repolens/repolens
+module github.com/MayIHaveK/RepoLens
 
 go 1.26
 

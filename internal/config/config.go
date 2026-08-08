@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/repolens/repolens/internal/model"
+	"github.com/MayIHaveK/RepoLens/internal/model"
 )
 
 type Config struct {

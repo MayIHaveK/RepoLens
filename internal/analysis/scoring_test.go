@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/repolens/repolens/internal/config"
-	"github.com/repolens/repolens/internal/model"
+	"github.com/MayIHaveK/RepoLens/internal/config"
+	"github.com/MayIHaveK/RepoLens/internal/model"
 )
 
 func TestCompositeSharesSumToHundred(t *testing.T) {

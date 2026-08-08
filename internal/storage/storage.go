@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/repolens/repolens/internal/model"
+	"github.com/MayIHaveK/RepoLens/internal/model"
 )
 
 type Store struct {

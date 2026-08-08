@@ -50,6 +50,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 .button svg { width: 16px; }
 .button.primary { background: var(--teal); color: #fff; }
 .button.primary:hover:not(:disabled) { background: var(--teal-dark); }
+.button.stop { background: #fff3f0; border-color: #e8b9ae; color: #a54330; }
+.button.stop:hover { background: #fde8e3; border-color: #d99a8c; }
 .button.secondary { background: #fff; border-color: #cfd5da; }
 .button.secondary:hover:not(:disabled) { background: #f7f9f9; border-color: #b7c0c7; }
 .button:disabled { opacity: .5; cursor: default; }
@@ -204,7 +206,8 @@ tbody tr:hover { background: #fafcfc; }
 .toggle-row.disabled { opacity: .5; cursor: default; }
 .integration-row { min-height: 56px; display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--line); padding: 9px 11px; }
 .integration-row > div { display: grid; gap: 3px; }.integration-row strong { font-size: 11px; }.integration-row span { color: var(--muted); font-size: 9px; }
-.textareas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }.textareas label { display: grid; gap: 6px; }.textareas label span { color: var(--muted); font-size: 10px; }
+.textareas { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }.textareas label { display: grid; gap: 6px; }.textareas label span { color: var(--muted); font-size: 10px; }
+.alias-field { display: grid; gap: 6px; }.alias-field > span { color: var(--muted); font-size: 10px; }.alias-field textarea { min-height: 110px; }
 textarea { min-height: 145px; padding: 9px; resize: vertical; font: 10px/1.55 Consolas, monospace; }
 
 .modal-backdrop { position: fixed; inset: 0; z-index: 50; background: #12181d99; display: grid; place-items: center; padding: 20px; }
@@ -243,4 +246,3 @@ textarea { min-height: 145px; padding: 9px; resize: vertical; font: 10px/1.55 Co
   .category-row { grid-template-columns: 110px minmax(80px,1fr) 60px; }.category-row > div:first-child b{display:none}
   .settings-view { border-left: 0; border-right: 0; }.settings-header{padding:18px 15px}.settings-section{grid-template-columns:1fr;padding:20px 15px;gap:17px}.settings-grid,.textareas{grid-template-columns:1fr}.toggle-list.two-columns,.modal-options{grid-template-columns:1fr}
 }
-

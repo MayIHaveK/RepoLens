@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Output = "bin/repolens.exe",
+    [string]$Version = "0.1.0-dev",
     [switch]$SkipTests
 )
 
@@ -27,8 +28,7 @@ if (-not $SkipTests) {
 
 $OutputPath = Join-Path $Root $Output
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $OutputPath) | Out-Null
-& go build -trimpath -ldflags="-s -w" -o $OutputPath ./cmd/repolens
+& go build -trimpath -ldflags="-s -w -X main.version=$Version" -o $OutputPath ./cmd/repolens
 if ($LASTEXITCODE -ne 0) { throw "Go build failed" }
 
 Write-Host "Built $OutputPath"
-

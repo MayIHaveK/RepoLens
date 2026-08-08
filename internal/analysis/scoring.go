@@ -3,8 +3,8 @@ package analysis
 import (
 	"sort"
 
-	"github.com/repolens/repolens/internal/config"
-	"github.com/repolens/repolens/internal/model"
+	"github.com/MayIHaveK/RepoLens/internal/config"
+	"github.com/MayIHaveK/RepoLens/internal/model"
 )
 
 func finalizeContributors(agg *aggregate, cfg config.Config) []model.Contributor {

@@ -19,6 +19,7 @@ export const api = {
       body: JSON.stringify({ repositoryPath, config }),
     }),
   job: (id: string) => request<Job>(`/api/jobs/${id}`),
+  cancelJob: (id: string) => request<Job>(`/api/jobs/${id}`, { method: 'DELETE' }),
   analysis: (id: string) => request<Analysis>(`/api/analyses/${id}`),
   export: async (analysisId: string, privacy: Privacy) => {
     const response = await fetch('/api/export', {
@@ -36,4 +37,3 @@ export const api = {
     URL.revokeObjectURL(url)
   },
 }
-

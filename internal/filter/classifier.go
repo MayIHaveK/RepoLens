@@ -4,8 +4,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/repolens/repolens/internal/config"
-	"github.com/repolens/repolens/internal/model"
+	"github.com/MayIHaveK/RepoLens/internal/config"
+	"github.com/MayIHaveK/RepoLens/internal/model"
 )
 
 type Classification struct {

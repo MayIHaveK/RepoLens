@@ -15,15 +15,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/repolens/repolens/internal/analysis"
-	"github.com/repolens/repolens/internal/config"
-	"github.com/repolens/repolens/internal/exporthtml"
-	"github.com/repolens/repolens/internal/model"
-	"github.com/repolens/repolens/internal/server"
-	"github.com/repolens/repolens/internal/storage"
+	"github.com/MayIHaveK/RepoLens/internal/analysis"
+	"github.com/MayIHaveK/RepoLens/internal/config"
+	"github.com/MayIHaveK/RepoLens/internal/exporthtml"
+	"github.com/MayIHaveK/RepoLens/internal/model"
+	"github.com/MayIHaveK/RepoLens/internal/server"
+	"github.com/MayIHaveK/RepoLens/internal/storage"
 )
 
-const version = "0.1.0-dev"
+var version = "0.1.0-dev"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {

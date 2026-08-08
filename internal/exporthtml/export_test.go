@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/repolens/repolens/internal/model"
+	"github.com/MayIHaveK/RepoLens/internal/model"
 )
 
 func TestPrivacyRemovesSensitiveDisplayFields(t *testing.T) {

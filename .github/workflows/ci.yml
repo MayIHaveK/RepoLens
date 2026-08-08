@@ -2,8 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -33,4 +34,3 @@ jobs:
       - working-directory: web
         run: npm run build
       - run: go build ./cmd/repolens
-
