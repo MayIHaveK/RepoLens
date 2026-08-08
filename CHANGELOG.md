@@ -1,21 +1,20 @@
-# Changelog
+# 更新日志
 
-All notable changes to RepoLens are documented in this file.
+RepoLens 的重要变更都会记录在本文件中。
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+本日志格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，项目版本遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
 ## [0.1.0] - 2026-08-08
 
-### Added
+### 新增
 
-- Local Git history, ownership, and composite contribution analysis.
-- Configurable metric and code-category weights.
-- Contributor identity aliases and bot filtering.
-- Privacy controls that omit source snippets and file names by default.
-- Standalone offline HTML reports.
-- Streaming job progress, cancellation, and reusable analysis cache.
-- Windows-first release builds with Linux and macOS artifacts.
-- Continuous integration, dependency updates, and GitHub issue templates.
+- 本地 Git 历史、当前代码所有权和综合贡献分析。
+- 可配置的贡献维度权重与代码类型权重。
+- 贡献者身份归并和机器人过滤。
+- 默认隐藏源代码片段和文件名的隐私控制。
+- 可独立打开的离线 HTML 报告。
+- 流式任务进度、分析取消和可复用结果缓存。
+- 以 Windows 为重点，同时提供 Linux 和 macOS 构建。
+- 持续集成、依赖更新和 GitHub Issue 模板。
 
 [0.1.0]: https://github.com/MayIHaveK/RepoLens/releases/tag/v0.1.0

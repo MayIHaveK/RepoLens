@@ -1,23 +1,22 @@
-name: Feature request
-description: Suggest an improvement to RepoLens
-title: "[Feature]: "
+name: 功能建议
+description: 为 RepoLens 提出改进建议
+title: "[功能]: "
 labels: [enhancement]
 body:
   - type: textarea
     id: problem
     attributes:
-      label: Problem
-      description: What workflow or limitation should this solve?
+      label: 要解决的问题
+      description: 这个功能需要改善哪项工作流程或限制？
     validations:
       required: true
   - type: textarea
     id: proposal
     attributes:
-      label: Proposed behavior
+      label: 建议的实现效果
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
-      label: Alternatives considered
-
+      label: 考虑过的其他方案

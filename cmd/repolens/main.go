@@ -50,20 +50,20 @@ func run(arguments []string) error {
 		printUsage()
 		return nil
 	default:
-		return fmt.Errorf("unknown command %q", arguments[0])
+		return fmt.Errorf("未知命令 %q", arguments[0])
 	}
 }
 
 func serve(arguments []string) error {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
-	address := flags.String("address", "127.0.0.1:41739", "HTTP listen address")
-	noOpen := flags.Bool("no-open", false, "do not open the browser")
-	cacheDirectory := flags.String("cache", "", "analysis cache directory")
+	address := flags.String("address", "127.0.0.1:41739", "HTTP 监听地址")
+	noOpen := flags.Bool("no-open", false, "启动后不自动打开浏览器")
+	cacheDirectory := flags.String("cache", "", "分析缓存目录")
 	if err := flags.Parse(arguments); err != nil {
 		return err
 	}
 	if !isLoopbackAddress(*address) {
-		return errors.New("refusing to bind outside loopback; use a reverse proxy with authentication for remote access")
+		return errors.New("为保护本地仓库，拒绝监听非回环地址；远程访问请使用带身份验证的反向代理")
 	}
 	store, err := storage.New(*cacheDirectory)
 	if err != nil {
@@ -76,7 +76,7 @@ func serve(arguments []string) error {
 		WriteTimeout: 0, IdleTimeout: 60 * time.Second,
 	}
 	url := "http://" + *address
-	fmt.Println("RepoLens is running at", url)
+	fmt.Println("RepoLens 已启动：", url)
 	if !*noOpen {
 		go func() {
 			time.Sleep(350 * time.Millisecond)
@@ -88,9 +88,9 @@ func serve(arguments []string) error {
 
 func analyze(arguments []string) error {
 	flags := flag.NewFlagSet("analyze", flag.ContinueOnError)
-	ref := flags.String("ref", "HEAD", "Git ref to analyze")
-	output := flags.String("output", "repolens-analysis.json", "output JSON file")
-	profile := flags.String("profile", "balanced", "fast, balanced, or thorough")
+	ref := flags.String("ref", "HEAD", "需要分析的 Git 版本")
+	output := flags.String("output", "repolens-analysis.json", "输出的 JSON 文件")
+	profile := flags.String("profile", "balanced", "性能配置：fast、balanced 或 thorough")
 	repository := ""
 	if len(arguments) > 0 && !strings.HasPrefix(arguments[0], "-") {
 		repository = arguments[0]
@@ -103,10 +103,10 @@ func analyze(arguments []string) error {
 		if flags.NArg() == 1 {
 			repository = flags.Arg(0)
 		} else {
-			return errors.New("usage: repolens analyze <repository>")
+			return errors.New("用法：repolens analyze <仓库路径>")
 		}
 	} else if flags.NArg() != 0 {
-		return errors.New("usage: repolens analyze <repository>")
+		return errors.New("用法：repolens analyze <仓库路径>")
 	}
 	cfg := config.Default()
 	cfg.Ref = *ref
@@ -125,13 +125,13 @@ func analyze(arguments []string) error {
 	if err := os.WriteFile(*output, data, 0o600); err != nil {
 		return err
 	}
-	fmt.Println("Analysis written to", *output)
+	fmt.Println("分析结果已写入：", *output)
 	return nil
 }
 
 func export(arguments []string) error {
 	if len(arguments) != 2 {
-		return errors.New("usage: repolens export <analysis.json> <report.html>")
+		return errors.New("用法：repolens export <分析结果.json> <报告.html>")
 	}
 	data, err := os.ReadFile(arguments[0])
 	if err != nil {
@@ -148,16 +148,16 @@ func export(arguments []string) error {
 	if err := os.WriteFile(arguments[1], document, 0o600); err != nil {
 		return err
 	}
-	fmt.Println("Report written to", arguments[1])
+	fmt.Println("报告已写入：", arguments[1])
 	return nil
 }
 
 func printUsage() {
-	fmt.Println(`RepoLens - local-first Git contribution analytics
+	fmt.Println(`RepoLens - 本地优先的 Git 贡献分析工具
 
-Usage:
-  repolens serve [options]
-  repolens analyze <repository> [options]
+用法：
+  repolens serve [选项]
+  repolens analyze <仓库路径> [选项]
   repolens export <analysis.json> <report.html>
   repolens version`)
 }

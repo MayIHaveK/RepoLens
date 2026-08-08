@@ -1,9 +1,5 @@
-# Security policy
+# 安全策略
 
-Please report vulnerabilities privately to the project maintainers before
-opening a public issue. Include the affected version, reproduction steps, and
-impact. Do not include private repository contents in a report.
+请先通过 GitHub Security Advisory 私下向项目维护者报告安全漏洞，不要直接创建公开 Issue。报告中请说明受影响版本、复现步骤和影响范围，但不要包含私有仓库内容。
 
-RepoLens is designed to read Git metadata only. Exported reports intentionally
-omit source snippets, file names, email addresses, local paths, and credentials.
-
+RepoLens 仅用于读取 Git 元数据。导出的报告会主动排除源代码片段、文件名、邮箱地址、本机路径和凭据。

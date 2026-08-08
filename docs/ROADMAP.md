@@ -1,26 +1,25 @@
-# Roadmap
+# 开发路线图
 
-## 0.1 Local analysis
+## 0.1 本地分析
 
-- Streaming Git history and configurable file classification
-- Current ownership and retained contribution
-- Local dashboard, result cache, and standalone HTML export
-- Windows-first single-binary release
-- Cancellable analysis jobs and configurable identity aliases
+- 流式 Git 历史和可配置文件分类
+- 当前代码所有权与留存贡献
+- 本地可视化面板、结果缓存和独立 HTML 导出
+- 以 Windows 为重点的单文件发布
+- 可取消分析任务与可配置身份别名
 
-## 0.2 GitHub enhancement
+## 0.2 GitHub 增强
 
-- OAuth device flow with credentials stored by the operating-system keychain
-- Pull request, review, and issue synchronization
-- Rate-limit awareness and incremental metadata refresh
-- Explicit Git-only and GitHub-enhanced report modes
+- OAuth 设备授权，并由操作系统密钥环保存凭据
+- Pull Request、Review 和 Issue 同步
+- API 频率限制感知和增量元数据刷新
+- 明确区分“仅 Git”和“GitHub 增强”报告模式
 
-## 0.3 Trust and scale
+## 0.3 可信度与规模
 
-- Per-blob incremental ownership cache
-- Signed report manifests
-- Monorepo module boundaries and team groups
-- Baseline comparisons between tags or release branches
+- 按 Blob 增量缓存代码所有权
+- 签名报告清单
+- Monorepo 模块边界和团队分组
+- 标签或发布分支之间的基线对比
 
-Roadmap items are directional rather than promises. Contribution metric changes
-will remain versioned and documented.
+路线图表示开发方向，不构成时间或功能承诺。贡献指标的变化会持续进行版本管理并记录在文档中。

@@ -1,55 +1,33 @@
-# Contribution methodology
+# 贡献计算方法
 
-RepoLens reports evidence from version-control history. It does not claim to
-measure developer value, difficulty, quality, mentoring, or product impact.
+RepoLens 展示的是版本控制历史中的可验证数据。它不会声称能够衡量开发者价值、任务难度、代码质量、辅导投入或产品影响。
 
-## Dimensions
+## 分析维度
 
-### Effective workload
+### 有效工作量
 
-Effective workload is based on additions and deletions from non-merge commits.
-Files excluded by ignore, generated, vendored, binary, or size rules contribute
-no workload. Source, test, documentation, configuration, and asset changes are
-reported separately. The default score uses additions plus half of deletions;
-both raw values remain visible.
+有效工作量根据非合并提交中的新增行和删除行计算。被忽略规则、生成文件规则、第三方代码规则、二进制规则或大小限制排除的文件不会产生工作量。源代码、测试、文档、配置和资源变更会分别统计。默认分数使用“新增行 + 删除行的一半”，原始数值仍会保留并展示。
 
-### Current ownership
+### 当前代码所有权
 
-Current ownership counts lines attributed by `git blame --line-porcelain` at the
-selected revision. It is a maintenance-oriented view of the current tree, not a
-claim of legal ownership. Blank and comment-only lines are not distinguished in
-the initial implementation.
+当前代码所有权统计目标版本中由 `git blame --line-porcelain` 归属到各贡献者的代码行。这是面向维护工作的当前目录树视角，并不代表法律意义上的所有权。初始版本暂不区分空白行和纯注释行。
 
-### Retained contribution
+### 留存贡献
 
-Retained lines are current owned lines divided by historical additions for the
-same contributor. This is an approximation. Refactors, squashes, copied code,
-and rewritten history can change attribution without reflecting the underlying
-human effort.
+留存率使用同一贡献者当前拥有的代码行除以历史新增行计算，只是一种近似值。重构、压缩提交、复制代码和改写历史都可能改变归属结果，但未必能反映真实的人力投入变化。
 
-### Collaboration
+### 协作贡献
 
-Collaboration uses optional forge metadata such as reviews and issue activity.
-Pull-request code is not counted again because its diff already contributes to
-effective workload. When forge data is unavailable, RepoLens omits this
-dimension and renormalizes the available weights.
+协作贡献使用可选的代码托管平台元数据，例如 Review 和 Issue 活动。Pull Request 中的代码差异已经计入有效工作量，因此不会重复计算。平台数据不可用时，RepoLens 会移除此维度，并对其余可用权重重新归一化。
 
-## Identity
+## 身份归并
 
-The author identity is preferred over the committer identity. `.mailmap`, explicit
-aliases, and `Co-authored-by` trailers may merge or split credit. Co-authored
-workload is divided equally among recognized authors for that commit.
+默认优先采用提交作者身份，而不是提交者身份。`.mailmap`、显式身份别名和 `Co-authored-by` 尾注都可能合并或拆分贡献。对于识别出的联合作者，同一提交的工作量会平均分配。
 
-## Merge commits
+## 合并提交
 
-Merge commits are excluded from workload by default to avoid counting changes
-already attributed to their original commits. Only commits reachable from the
-selected revision and matching the time filters are included.
+默认不把 Merge commit 计入工作量，以免重复统计已经归属于原始提交的变更。只有目标版本可达、并且符合时间筛选条件的提交会被分析。
 
-## Reproducibility
+## 可复现性
 
-Each report records the selected revision, resolved commit, RepoLens version,
-configuration fingerprint, and generation time. A recipient without access to a
-private repository cannot independently prove that the supplied Git history was
-authentic. Reports are reproducible evidence, not third-party attestations.
-
+每份报告都会记录目标版本、解析后的提交、RepoLens 版本、配置指纹和生成时间。无法访问私有仓库的报告接收者不能独立证明所提供 Git 历史的真实性。因此，报告属于可复现的数据说明，而不是第三方认证。

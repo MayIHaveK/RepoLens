@@ -1,32 +1,26 @@
-# Architecture
+# 系统架构
 
-RepoLens is split into a streaming analysis core, a small local HTTP service,
-and a browser UI embedded into the release binary.
+RepoLens 由流式分析核心、小型本地 HTTP 服务和嵌入发布程序的浏览器界面组成。
 
-## Data flow
+## 数据流程
 
-1. Validate and resolve the repository and revision.
-2. Stream one `git log --numstat` process for historical workload.
-3. Enumerate the selected tree without checking it out.
-4. Run bounded concurrent blame processes for eligible files.
-5. Normalize identities and calculate dimension shares.
-6. write a versioned analysis snapshot to the user cache directory.
-7. Serve the snapshot to the local UI or export a standalone HTML report.
+1. 验证并解析仓库和目标版本。
+2. 通过单个 `git log --numstat` 进程流式统计历史工作量。
+3. 在不检出文件的情况下枚举目标版本目录树。
+4. 对符合条件的文件运行有并发上限的 `blame` 任务。
+5. 归一化贡献者身份并计算各维度占比。
+6. 将带版本号的分析快照写入用户缓存目录。
+7. 向本地界面提供快照，或导出独立 HTML 报告。
 
-## Large repositories
+## 大型仓库
 
-- Git output is parsed as a stream.
-- Contributor and timeline aggregates are bounded; full diffs are not retained.
-- Blame concurrency is configurable and canceled with the parent context.
-- Oversized and binary files are rejected before blame.
-- Result snapshots are keyed by commit and configuration fingerprint.
-- The Fast profile skips blame; Balanced caps files and parallelism; Thorough
-  removes most caps.
+- Git 输出采用流式解析。
+- 贡献者和时间线聚合数量受控，不保留完整差异内容。
+- `blame` 并发数可配置，并随父级上下文一起取消。
+- 超大文件和二进制文件会在 `blame` 前被排除。
+- 结果快照以提交和配置指纹作为缓存键。
+- “快速”跳过 `blame`，“平衡”限制文件数和并发数，“完整”移除大部分限制。
 
-## Security boundary
+## 安全边界
 
-The server binds to loopback by default. Repository paths are never returned to
-the browser after a job is created. The analyzer invokes Git with arguments
-directly and does not use a shell, check out code, load project dependencies, or
-execute hooks.
-
+服务默认只监听本机回环地址。任务创建后，仓库路径不会返回给浏览器。分析器直接传递参数调用 Git，不使用 Shell，不检出代码，不加载项目依赖，也不会执行 Git Hook。
