@@ -5,11 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"math"
-	"path"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/MayIHaveK/RepoLens/internal/config"
@@ -21,11 +22,12 @@ import (
 type ProgressFunc func(model.Progress)
 
 type Analyzer struct {
-	git gitutil.Client
+	git     gitutil.Client
+	Version string
 }
 
 func New() *Analyzer {
-	return &Analyzer{git: gitutil.New()}
+	return &Analyzer{git: gitutil.New(), Version: "0.2.0-dev"}
 }
 
 type contributorAggregate struct {
@@ -36,19 +38,21 @@ type contributorAggregate struct {
 }
 
 type aggregate struct {
-	contributors map[string]*contributorAggregate
-	timeline     map[string]*model.TimelineBucket
-	categories   map[model.Category]*model.CategorySummary
-	warnings     []string
-	commits      int64
-	files        int64
-	additions    int64
-	deletions    int64
-	ownedLines   int64
-	analyzed     int64
-	skipped      int64
-	eligible     int64
-	mu           sync.Mutex
+	contributors   map[string]*contributorAggregate
+	timeline       map[string]*model.TimelineBucket
+	categories     map[model.Category]*model.CategorySummary
+	warnings       []string
+	commits        int64
+	files          int64
+	additions      int64
+	deletions      int64
+	ownedLines     int64
+	analyzed       int64
+	skipped        int64
+	eligible       int64
+	project        *model.Project
+	fileChanges    map[string]model.FileMetric
+	historySkipped map[string]int64
 }
 
 type identity struct {
@@ -58,6 +62,7 @@ type identity struct {
 }
 
 type fileChange struct {
+	path      string
 	category  model.Category
 	directory string
 	additions int64
@@ -79,21 +84,30 @@ type treeFile struct {
 	objectID string
 	size     int64
 	category model.Category
+	mode     string
 }
 
 func (a *Analyzer) CacheKey(ctx context.Context, repository string, cfg config.Config) (string, error) {
-	cfg.Normalize()
+	var err error
+	cfg, err = cfg.Prepared()
+	if err != nil {
+		return "", err
+	}
 	root, sha, _, _, err := a.git.ResolveRepository(ctx, repository, cfg.Ref)
 	if err != nil {
 		return "", err
 	}
-	return shortHash(root + "\x00" + sha + "\x00" + cfg.Fingerprint()), nil
+	return a.cacheID(ctx, root, sha, cfg)
 }
 
 func (a *Analyzer) Analyze(ctx context.Context, repository string, cfg config.Config, progress ProgressFunc) (*model.Analysis, error) {
 	started := time.Now()
-	cfg.Normalize()
-	applyProfile(&cfg)
+	requestedRetention := cfg.EnableRetention
+	var err error
+	cfg, err = cfg.Prepared()
+	if err != nil {
+		return nil, err
+	}
 	if progress == nil {
 		progress = func(model.Progress) {}
 	}
@@ -103,18 +117,40 @@ func (a *Analyzer) Analyze(ctx context.Context, repository string, cfg config.Co
 	if err != nil {
 		return nil, err
 	}
+	analysisID, err := a.cacheID(ctx, root, sha, cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	agg := newAggregate()
+	shallow, err := a.git.Output(ctx, root, "rev-parse", "--is-shallow-repository")
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(string(shallow)) == "true" {
+		agg.warnings = append(agg.warnings, "当前为浅克隆，历史工作量与近似留存只反映本机已有提交，不能代表完整历史。")
+	}
+	if requestedRetention && (cfg.Since != "" || cfg.Until != "") {
+		agg.warnings = append(agg.warnings, "时间筛选只作用于历史工作量；当前文件树仍取目标版本，留存指标已停用以避免混用范围。")
+	}
+	if cfg.EnableCollaboration {
+		agg.warnings = append(agg.warnings, "当前未连接协作平台，协作维度不参与综合评分。")
+	}
 	classifier := filter.NewClassifier(cfg)
+	progress(model.Progress{Phase: "tree", Message: "正在索引目标版本文件树", Percent: 4})
+	files, err := a.scanTree(ctx, root, sha, cfg, classifier, agg)
+	if err != nil {
+		return nil, fmt.Errorf("scan tree: %w", err)
+	}
 	progress(model.Progress{Phase: "history", Message: "正在流式读取提交历史", Percent: 8})
 	if err := a.scanHistory(ctx, root, sha, cfg, classifier, agg, progress); err != nil {
 		return nil, fmt.Errorf("scan history: %w", err)
 	}
 
-	progress(model.Progress{Phase: "tree", Message: "正在索引当前代码树", Percent: 42})
-	files, err := a.scanTree(ctx, root, sha, cfg, classifier, agg)
+	progress(model.Progress{Phase: "inventory", Message: "正在统计代码、配置和文件关系", Percent: 44})
+	files, err = a.scanInventory(ctx, root, files, cfg, agg)
 	if err != nil {
-		return nil, fmt.Errorf("scan tree: %w", err)
+		return nil, fmt.Errorf("scan inventory: %w", err)
 	}
 
 	if cfg.EnableOwnership {
@@ -125,18 +161,32 @@ func (a *Analyzer) Analyze(ctx context.Context, repository string, cfg config.Co
 	}
 
 	progress(model.Progress{Phase: "scoring", Message: "正在计算多维贡献占比", Percent: 91})
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	contributors := finalizeContributors(agg, cfg)
 	timeline := finalizeTimeline(agg)
 	categories := finalizeCategories(agg)
 
-	coverage := 100.0
+	coverage := 0.0
 	if agg.eligible > 0 {
 		coverage = float64(agg.analyzed) / float64(agg.eligible) * 100
 	}
-	analysisID := shortHash(root + "\x00" + sha + "\x00" + cfg.Fingerprint())
+	finalID, err := a.cacheID(ctx, root, sha, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if finalID != analysisID {
+		return nil, fmt.Errorf("分析期间 Git 配置或身份映射发生变化，请重新分析")
+	}
+	snapshot := cfg.Snapshot()
+	snapshot.EffectiveWeights = effectiveWeights(agg, cfg)
 	result := &model.Analysis{
-		SchemaVersion: model.SchemaVersion,
-		ID:            analysisID,
+		ProgramVersion:   a.Version,
+		AlgorithmVersion: model.AlgorithmVersion,
+		Project:          agg.project,
+		SchemaVersion:    model.SchemaVersion,
+		ID:               analysisID,
 		Repository: model.Repository{
 			Name:        name,
 			Ref:         cfg.Ref,
@@ -148,7 +198,7 @@ func (a *Analyzer) Analyze(ctx context.Context, repository string, cfg config.Co
 		GeneratedAt: time.Now().UTC(),
 		DurationMS:  time.Since(started).Milliseconds(),
 		Mode:        analysisMode(cfg),
-		Config:      cfg.Snapshot(),
+		Config:      snapshot,
 		Summary: model.Summary{
 			Contributors:    len(contributors),
 			Commits:         agg.commits,
@@ -171,34 +221,116 @@ func (a *Analyzer) Analyze(ctx context.Context, repository string, cfg config.Co
 
 func newAggregate() *aggregate {
 	return &aggregate{
-		contributors: map[string]*contributorAggregate{},
-		timeline:     map[string]*model.TimelineBucket{},
-		categories:   map[model.Category]*model.CategorySummary{},
+		contributors:   map[string]*contributorAggregate{},
+		timeline:       map[string]*model.TimelineBucket{},
+		categories:     map[model.Category]*model.CategorySummary{},
+		fileChanges:    map[string]model.FileMetric{},
+		historySkipped: map[string]int64{},
+		project:        &model.Project{Scope: "目标提交中的受支持文本文件，不含工作区未提交内容", Skipped: map[string]int64{}, Files: []model.FileMetric{}, Languages: []model.LanguageSummary{}, Directories: []model.DirectorySummary{}, Dependencies: []model.Dependency{}, Configurations: []model.ConfigurationInfo{}, Cycles: [][]string{}},
 	}
 }
 
-func applyProfile(cfg *config.Config) {
-	switch strings.ToLower(cfg.Profile) {
-	case "fast":
-		cfg.EnableOwnership = false
-		cfg.EnableRetention = false
-		cfg.DetectRenames = false
-	case "thorough":
-		cfg.MaxOwnershipFiles = math.MaxInt
-		if cfg.Parallelism < 2 {
-			cfg.Parallelism = 2
+func (a *Analyzer) cacheID(ctx context.Context, root, sha string, cfg config.Config) (string, error) {
+	inputs, err := a.git.Output(ctx, root, "config", "--null", "--list")
+	if err != nil {
+		return "", err
+	}
+	mappings := []string{filepath.Join(root, ".mailmap")}
+	for _, entry := range strings.Split(string(inputs), "\x00") {
+		key, value, ok := strings.Cut(entry, "\n")
+		if ok && key == "mailmap.blob" && value != "" {
+			blob, err := a.git.Output(ctx, root, "rev-parse", "--verify", "--end-of-options", value+"^{blob}")
+			if err != nil {
+				return "", err
+			}
+			inputs = append(inputs, blob...)
 		}
-	default:
-		cfg.Profile = "balanced"
+		if ok && key == "mailmap.file" && value != "" {
+			if strings.HasPrefix(value, "~/") || strings.HasPrefix(value, "~\\") {
+				userHome, err := os.UserHomeDir()
+				if err != nil {
+					return "", err
+				}
+				value = filepath.Join(userHome, value[2:])
+			}
+			if !filepath.IsAbs(value) {
+				value = filepath.Join(root, value)
+			}
+			mappings = append(mappings, value)
+		}
 	}
+	for _, file := range mappings {
+		digest, err := fingerprintFile(ctx, file)
+		if err != nil {
+			return "", err
+		}
+		inputs = append(inputs, []byte(file+"\x00"+digest)...)
+	}
+	// Deepening a shallow clone or changing replacement refs can change history
+	// without moving HEAD, so these inputs also invalidate cached analyses.
+	for _, name := range []string{"shallow", "info/grafts"} {
+		location, err := a.git.Output(ctx, root, "rev-parse", "--git-path", name)
+		if err != nil {
+			return "", err
+		}
+		file := strings.TrimSpace(string(location))
+		if !filepath.IsAbs(file) {
+			file = filepath.Join(root, file)
+		}
+		digest, err := fingerprintFile(ctx, file)
+		if err != nil {
+			return "", err
+		}
+		inputs = append(inputs, []byte(digest)...)
+	}
+	refs, err := a.git.Output(ctx, root, "for-each-ref", "--format=%(refname) %(objectname)", "refs/replace")
+	if err != nil {
+		return "", err
+	}
+	inputs = append(inputs, refs...)
+	gitVersion, err := a.git.Output(ctx, root, "--version")
+	if err != nil {
+		return "", err
+	}
+	return shortHash(root + "\x00" + sha + "\x00" + cfg.Fingerprint() + "\x00" + model.AlgorithmVersion + "\x00" + a.Version + "\x00" + string(inputs) + string(gitVersion)), nil
 }
 
-func analysisMode(cfg config.Config) string {
-	if cfg.EnableCollaboration {
-		return "git-only"
+func fingerprintFile(ctx context.Context, filename string) (string, error) {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return "missing", nil
 	}
-	return "git-only"
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("Git 分析输入必须是普通文件")
+	}
+	file, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	digest := sha256.New()
+	if _, err := io.Copy(digest, contextReader{ctx, file}); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(digest.Sum(nil)), nil
 }
+
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r contextReader) Read(buffer []byte) (int, error) {
+	if r.ctx.Err() != nil {
+		return 0, r.ctx.Err()
+	}
+	return r.reader.Read(buffer)
+}
+
+func analysisMode(_ config.Config) string { return "git-only" }
 
 func shortHash(value string) string {
 	sum := sha256.Sum256([]byte(value))
@@ -252,13 +384,4 @@ func parseInt64(value string) (int64, bool) {
 	}
 	number, err := strconv.ParseInt(value, 10, 64)
 	return number, err == nil
-}
-
-func cleanRenamePath(value string) string {
-	if index := strings.LastIndex(value, " => "); index >= 0 {
-		value = value[index+4:]
-		value = strings.ReplaceAll(value, "{", "")
-		value = strings.ReplaceAll(value, "}", "")
-	}
-	return path.Clean(value)
 }

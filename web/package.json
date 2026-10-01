@@ -1,9 +1,10 @@
 {
   "name": "repolens-web",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
+    "test": "node --experimental-strip-types --test src/monitor.test.ts",
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
     "check": "tsc -b --pretty false",

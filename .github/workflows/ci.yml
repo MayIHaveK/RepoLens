@@ -32,5 +32,8 @@ jobs:
       - working-directory: web
         run: npm run check
       - working-directory: web
+        run: npm test
+      - run: go vet ./...
+      - working-directory: web
         run: npm run build
       - run: go build ./cmd/repolens

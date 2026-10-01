@@ -1,13 +1,20 @@
 import { Gauge, GitPullRequest as Github, LockKeyhole, Scale, SlidersHorizontal, Tags, UserRoundCog } from 'lucide-react'
 import type { Category, Config, Privacy, Weights } from '../types'
+import { useEffect, useState } from 'react'
+import { api } from '../api'
+import { downloadBlob } from '../download'
 import { Toggle } from './Toggle'
 
 interface Props {
   config: Config
+  effective: Config | null
   onChange: (config: Config) => void
 }
 
-export function Settings({ config, onChange }: Props) {
+export function Settings({ config, effective, onChange }: Props) {
+  const [message, setMessage] = useState('')
+  const [aliasText, setAliasText] = useState(() => formatAliases(config.aliases))
+  useEffect(() => setAliasText(formatAliases(config.aliases)), [config.aliases])
   const set = <K extends keyof Config>(key: K, value: Config[K]) => onChange({ ...config, [key]: value })
   const setWeight = (key: keyof Weights, value: number) => set('weights', { ...config.weights, [key]: value })
   const setCategoryWeight = (key: Category, value: number) => set('categoryWeights', { ...config.categoryWeights, [key]: value })
@@ -16,6 +23,18 @@ export function Settings({ config, onChange }: Props) {
   return (
     <div className="settings-view">
       <header className="settings-header"><div><h2>分析设置</h2><p>配置会写入报告，并参与缓存指纹计算。</p></div><span className={Math.abs(weightTotal - 1) < 0.001 ? 'valid' : 'invalid'}>权重合计 {(weightTotal * 100).toFixed(0)}%</span></header>
+      <div className="config-actions">
+        <button className="button secondary" onClick={() => downloadBlob(new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' }), 'repolens-config.json')}>导出本机配置</button>
+        <label className="button secondary">导入配置<input type="file" accept=".json,application/json" className="file-input" onChange={async (event) => {
+          const input = event.currentTarget
+          const file = input.files?.[0]
+          if (!file) return
+          try { if (file.size > 2 * 1024 * 1024) throw new Error('配置文件超过 2 MB'); const result = await api.validateConfig(JSON.parse(await file.text())); onChange(result.config); setMessage('配置已导入并验证') } catch (cause) { setMessage(cause instanceof Error ? cause.message : '无法导入配置') } finally { input.value = '' }
+        }} /></label>
+        <button className="button secondary" onClick={() => api.defaultConfig().then((defaults) => { onChange(defaults); setMessage('已恢复默认设置') }).catch((cause) => setMessage(cause.message))}>恢复默认</button>
+        <span>设置自动保存在此浏览器；配置文件包含身份别名，离线报告会移除完整配置。</span>
+      </div>
+      {message && <p className="config-message" role="status">{message}</p>}
 
       <SettingsSection icon={<Scale />} title="综合贡献权重" description="每个维度仍会独立展示，权重只影响综合占比。">
         <Range label="有效工作量" value={config.weights.workload} onChange={(value) => setWeight('workload', value)} color="#008f83" />
@@ -37,8 +56,10 @@ export function Settings({ config, onChange }: Props) {
         <div className="settings-grid">
           <label className="field"><span>并行任务数</span><input type="number" min="1" max="32" value={config.parallelism} onChange={(e) => set('parallelism', Number(e.target.value))} /></label>
           <label className="field"><span>单文件上限（MB）</span><input type="number" min="1" max="100" value={Math.round(config.maxFileSizeBytes / 1024 / 1024)} onChange={(e) => set('maxFileSizeBytes', Number(e.target.value) * 1024 * 1024)} /></label>
-          <label className="field"><span>归属文件上限</span><input type="number" min="100" max="1000000" value={config.maxOwnershipFiles} onChange={(e) => set('maxOwnershipFiles', Number(e.target.value))} /></label>
+          <label className="field"><span>归属文件上限</span><input type="number" min="1" max="1000000" value={config.maxOwnershipFiles} onChange={(e) => set('maxOwnershipFiles', Number(e.target.value))} /></label>
+          <label className="field"><span>画像文件上限</span><input type="number" min="1" max="1000000" value={config.maxInventoryFiles} onChange={(e) => set('maxInventoryFiles', Number(e.target.value))} /></label>
         </div>
+        {effective && <p className="effective-config">实际生效：并行 {effective.parallelism}；单文件 {(effective.maxFileSizeBytes / 1024 / 1024).toFixed(1)} MB；画像最多 {effective.maxInventoryFiles.toLocaleString()} 文件；{effective.enableOwnership ? `归属最多 ${effective.maxOwnershipFiles.toLocaleString()} 文件` : '跳过归属'}；{effective.enableRetention ? '近似留存启用' : '留存停用'}。</p>}
         <div className="toggle-list">
           <Toggle label="当前代码所有权" description="对目标版本中的文件执行并行 blame。" checked={config.enableOwnership} onChange={(value) => set('enableOwnership', value)} />
           <Toggle label="代码留存" description="结合历史新增和当前归属计算留存率。" checked={config.enableRetention} onChange={(value) => set('enableRetention', value)} />
@@ -63,7 +84,9 @@ export function Settings({ config, onChange }: Props) {
       </SettingsSection>
 
       <SettingsSection icon={<UserRoundCog />} title="贡献者身份归并" description="把历史用户名或邮箱归并到同一身份，每行使用“旧身份 = 统一身份”。">
-        <label className="alias-field"><span>身份别名</span><textarea placeholder="old@example.com = developer@example.com" value={formatAliases(config.aliases)} onChange={(e) => set('aliases', parseAliases(e.target.value))} /></label>
+        <label className="alias-field"><span>身份别名（离开输入框后保存）</span><textarea placeholder="old@example.com = developer@example.com" value={aliasText} onChange={(e) => setAliasText(e.target.value)} onBlur={() => {
+          try { const aliases = parseAliases(aliasText); set('aliases', aliases); setMessage('') } catch (cause) { setMessage(cause instanceof Error ? cause.message : '别名格式错误') }
+        }} /></label>
       </SettingsSection>
 
       <SettingsSection icon={<LockKeyhole />} title="默认导出隐私" description="源代码、结构化文件名、邮箱、本机路径和凭据始终不会导出。">
@@ -100,10 +123,11 @@ function parseAliases(value: string) {
   const aliases: Record<string, string> = {}
   for (const line of lines(value)) {
     const separator = line.indexOf('=')
-    if (separator <= 0) continue
-    const source = line.slice(0, separator).trim()
-    const target = line.slice(separator + 1).trim()
-    if (source && target) aliases[source] = target
+    if (separator <= 0) throw new Error('每行别名必须使用“旧身份 = 统一身份”')
+    const source = line.slice(0, separator).trim().toLowerCase()
+    const target = line.slice(separator + 1).trim().toLowerCase()
+    if (!source || !target || aliases[source]) throw new Error('别名不能重复或为空')
+    aliases[source] = target
   }
   return aliases
 }

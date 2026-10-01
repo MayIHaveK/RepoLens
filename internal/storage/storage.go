@@ -8,12 +8,14 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/MayIHaveK/RepoLens/internal/model"
 )
 
 type Store struct {
 	directory string
+	mu        sync.Mutex
 }
 
 func New(directory string) (*Store, error) {
@@ -42,12 +44,40 @@ func (s *Store) Save(analysis *model.Analysis) error {
 	if err != nil {
 		return err
 	}
-	path := s.path(analysis.ID)
-	temporary := path + ".tmp"
-	if err := os.WriteFile(temporary, data, 0o600); err != nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.writeAtomic(s.path(analysis.ID), data); err != nil {
 		return err
 	}
-	return os.Rename(temporary, path)
+	// A small sidecar keeps recent lists independent of large file inventories.
+	summary := *analysis
+	summary.Project = nil
+	summary.Contributors = nil
+	summary.Timeline = nil
+	summary.Categories = nil
+	summary.Config.Effective = nil
+	data, err = json.Marshal(summary)
+	if err != nil {
+		return err
+	}
+	return s.writeAtomic(filepath.Join(s.directory, analysis.ID+".summary"), data)
+}
+
+func (s *Store) writeAtomic(destination string, data []byte) error {
+	file, err := os.CreateTemp(s.directory, "repolens-*.tmp")
+	if err != nil {
+		return err
+	}
+	name := file.Name()
+	defer os.Remove(name)
+	if _, err := file.Write(data); err != nil {
+		_ = file.Close()
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	return os.Rename(name, destination)
 }
 
 func (s *Store) Load(id string) (*model.Analysis, error) {
@@ -62,7 +92,7 @@ func (s *Store) Load(id string) (*model.Analysis, error) {
 	if err := json.Unmarshal(data, &analysis); err != nil {
 		return nil, err
 	}
-	if analysis.SchemaVersion != model.SchemaVersion {
+	if analysis.SchemaVersion != 1 && analysis.SchemaVersion != model.SchemaVersion {
 		return nil, fmt.Errorf("unsupported analysis schema %d", analysis.SchemaVersion)
 	}
 	return &analysis, nil
@@ -78,7 +108,22 @@ func (s *Store) List(limit int) ([]model.Analysis, error) {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			continue
 		}
-		analysis, err := s.Load(strings.TrimSuffix(entry.Name(), ".json"))
+		id := strings.TrimSuffix(entry.Name(), ".json")
+		data, err := os.ReadFile(filepath.Join(s.directory, id+".summary"))
+		var analysis *model.Analysis
+		if err == nil {
+			analysis = &model.Analysis{}
+			err = json.Unmarshal(data, analysis)
+		} else {
+			analysis, err = s.Load(id)
+			if err == nil {
+				analysis.Project = nil
+				analysis.Contributors = nil
+				analysis.Timeline = nil
+				analysis.Categories = nil
+				analysis.Config.Effective = nil
+			}
+		}
 		if err == nil {
 			results = append(results, *analysis)
 		}

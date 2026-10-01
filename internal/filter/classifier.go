@@ -65,6 +65,7 @@ func (c Classifier) Classify(filePath string) Classification {
 
 func isTestPath(filePath, base string) bool {
 	lower := strings.ToLower(filePath)
+	lower = "/" + strings.TrimPrefix(lower, "/")
 	return strings.Contains(lower, "/test/") || strings.Contains(lower, "/tests/") ||
 		strings.Contains(lower, "/__tests__/") || strings.HasSuffix(base, "_test.go") ||
 		strings.Contains(base, ".test.") || strings.Contains(base, ".spec.")
@@ -79,7 +80,7 @@ func isDocumentation(base, ext string) bool {
 }
 
 func isConfiguration(base, ext string) bool {
-	if contains([]string{"dockerfile", "makefile", "justfile", ".gitignore", ".gitattributes", ".editorconfig"}, base) {
+	if contains([]string{"dockerfile", "makefile", "justfile", ".gitignore", ".gitattributes", ".editorconfig", "go.mod", "go.sum"}, base) {
 		return true
 	}
 	return contains([]string{".json", ".yaml", ".yml", ".toml", ".ini", ".properties", ".xml", ".gradle", ".conf"}, ext)

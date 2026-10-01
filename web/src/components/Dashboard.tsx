@@ -18,17 +18,24 @@ export function Overview({ analysis }: { analysis: Analysis }) {
         <Metric icon={<ShieldCheck />} label="分析耗时" value={duration(analysis.durationMs)} detail={analysis.config.profile === 'balanced' ? '平衡模式' : analysis.config.profile} tone="yellow" />
       </div>
 
+      {analysis.project && <div className="metric-band">
+        <Metric icon={<Code2 />} label="目标版本文本总行" value={format(analysis.project.totals.total)} detail={`${format(analysis.project.textFiles)} 个已读取文本文件`} />
+        <Metric icon={<Code2 />} label="有效源代码行" value={format(analysis.project.sourceCodeLines)} detail="源代码与测试，排除纯注释和空行" tone="green" />
+        <Metric icon={<Code2 />} label="注释 / 空白" value={format(analysis.project.totals.comment)} detail={`${format(analysis.project.totals.blank)} 行空白`} tone="blue" />
+        <Metric icon={<ShieldCheck />} label="配置文件" value={format(analysis.project.configurations.length)} detail="在项目分析中查看结构与关系" tone="yellow" />
+      </div>}
+
       {analysis.warnings && analysis.warnings.length > 0 && (
-        <div className="warning-strip"><AlertTriangle size={17} /><span>{analysis.warnings[0]}</span></div>
+        <div className="warning-strip"><AlertTriangle size={17} /><ul>{analysis.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>
       )}
 
       <div className="dashboard-grid">
         <section className="data-section contribution-section">
-          <div className="section-title"><div><h2>综合贡献分布</h2><p>根据当前权重归一化计算</p></div><span className="section-note">总计 100%</span></div>
+          <div className="section-title"><div><h2>综合贡献分布</h2><p>根据有可用数据的维度归一化</p></div><span className="section-note">合计 {analysis.contributors.reduce((sum, item) => sum + item.compositeShare, 0).toFixed(1)}%</span></div>
           <DonutChart contributors={analysis.contributors} />
         </section>
         <section className="data-section category-section">
-          <div className="section-title"><div><h2>代码类型构成</h2><p>已过滤生成、依赖和二进制文件</p></div></div>
+          <div className="section-title"><div><h2>代码类型构成</h2><p>文件数取当前已读取文本；新增取筛选后的历史</p></div></div>
           <div className="category-list">
             {analysis.categories.map((category) => (
               <div className="category-row" key={category.category}>
@@ -45,6 +52,7 @@ export function Overview({ analysis }: { analysis: Analysis }) {
         <div className="section-title"><div><h2>贡献者排名</h2><p>各维度独立展示，综合占比不替代原始数据</p></div><span className="section-note">按综合占比排序</span></div>
         <ContributorTable analysis={analysis} limit={6} />
       </section>
+      <details className="data-section analysis-notes"><summary>分析配置与可复现信息</summary><p>程序 {analysis.programVersion || '旧版未记录'} · 算法 {analysis.algorithmVersion || '旧版未记录'} · 配置 {analysis.config.fingerprint}</p>{analysis.config.effectiveWeights && <p>实际评分权重：工作量 {(analysis.config.effectiveWeights.workload * 100).toFixed(1)}% · 所有权 {(analysis.config.effectiveWeights.ownership * 100).toFixed(1)}% · 留存 {(analysis.config.effectiveWeights.retention * 100).toFixed(1)}% · 协作 {(analysis.config.effectiveWeights.collaboration * 100).toFixed(1)}%</p>}{analysis.config.effective && <pre>{JSON.stringify(analysis.config.effective, null, 2)}</pre>}</details>
     </>
   )
 }
@@ -82,7 +90,7 @@ function ContributorTable({ analysis, limit }: { analysis: Analysis; limit?: num
         <tr key={person.id}>
           <td><div className="person-cell"><span className={`rank rank-${Math.min(index + 1, 4)}`}>{index + 1}</span><span><b>{person.name}</b><small>{person.firstCommitAt ? new Date(person.firstCommitAt).toLocaleDateString('zh-CN') + ' 加入' : '历史贡献者'}</small></span></div></td>
           <td><div className="share-cell"><span className="share-track"><i style={{ width: `${person.compositeShare}%` }} /></span><b>{person.compositeShare.toFixed(1)}%</b></div></td>
-          <td>{person.workloadShare.toFixed(1)}%</td><td>{person.ownershipShare.toFixed(1)}%</td><td>{person.retentionRate.toFixed(1)}%</td>
+          <td>{person.workloadShare.toFixed(1)}%</td><td>{analysis.config.ownershipEnabled ? person.ownershipShare.toFixed(1) + '%' : '—'}</td><td>{analysis.config.effective?.enableRetention === false ? '—' : person.retentionRate.toFixed(1) + '%'}</td>
           <td><span className="icon-number"><GitCommitHorizontal size={14} />{format(person.commits)}</span></td>
           <td><span className="positive"><ArrowUp size={13} />{format(person.additions)}</span><span className="negative"><ArrowDown size={13} />{format(person.deletions)}</span></td>
         </tr>

@@ -13,7 +13,7 @@ func finalizeContributors(agg *aggregate, cfg config.Config) []model.Contributor
 		totalWorkload += contributor.Workload
 		totalOwnership += float64(contributor.Contributor.OwnedLines)
 		retentionRate := 0.0
-		if contributor.Contributor.HistoricalAdded > 0 {
+		if cfg.EnableRetention && contributor.Contributor.HistoricalAdded > 0 {
 			retentionRate = minFloat(float64(contributor.Contributor.OwnedLines)/float64(contributor.Contributor.HistoricalAdded), 1)
 		}
 		contributor.Contributor.RetentionRate = round(retentionRate*100, 1)
@@ -21,7 +21,10 @@ func finalizeContributors(agg *aggregate, cfg config.Config) []model.Contributor
 		totalCollaboration += float64(contributor.Contributor.Reviews*3 + contributor.Contributor.Issues)
 	}
 
-	availableWeight := cfg.Weights.Workload
+	availableWeight := 0.0
+	if totalWorkload > 0 {
+		availableWeight = cfg.Weights.Workload
+	}
 	if totalOwnership > 0 && cfg.EnableOwnership {
 		availableWeight += cfg.Weights.Ownership
 	}
@@ -45,7 +48,10 @@ func finalizeContributors(agg *aggregate, cfg config.Config) []model.Contributor
 			contributor.OwnershipShare = float64(contributor.OwnedLines) / totalOwnership * 100
 		}
 		if totalRetention > 0 {
-			retentionRate := contributor.RetentionRate / 100
+			retentionRate := 0.0
+			if contributor.HistoricalAdded > 0 {
+				retentionRate = minFloat(float64(contributor.OwnedLines)/float64(contributor.HistoricalAdded), 1)
+			}
 			contributor.RetentionShare = float64(contributor.OwnedLines) * retentionRate / totalRetention * 100
 		}
 		if totalCollaboration > 0 {
@@ -69,7 +75,7 @@ func finalizeContributors(agg *aggregate, cfg config.Config) []model.Contributor
 		contributor.RetentionShare = round(contributor.RetentionShare, 2)
 		contributor.CollaborationShare = round(contributor.CollaborationShare, 2)
 		contributor.CompositeShare = round(contributor.CompositeShare, 2)
-		contributor.TopDirectories = topDirectories(aggregate.Directories, cfg.Privacy.ShowDirectories)
+		contributor.TopDirectories = topDirectories(aggregate.Directories, true)
 		sort.SliceStable(contributor.RecentCommits, func(i, j int) bool {
 			return contributor.RecentCommits[i].Timestamp > contributor.RecentCommits[j].Timestamp
 		})
@@ -99,12 +105,48 @@ func topDirectories(values map[string]model.Change, enabled bool) []model.Direct
 	sort.SliceStable(result, func(i, j int) bool {
 		left := result[i].Additions + result[i].Deletions
 		right := result[j].Additions + result[j].Deletions
+		if left == right {
+			return result[i].Name < result[j].Name
+		}
 		return left > right
 	})
 	if len(result) > 6 {
 		result = result[:6]
 	}
 	return result
+}
+
+func effectiveWeights(agg *aggregate, cfg config.Config) model.Weights {
+	var workload, ownership, retention, collaboration float64
+	for _, item := range agg.contributors {
+		workload += item.Workload
+		ownership += float64(item.Contributor.OwnedLines)
+		if item.Contributor.HistoricalAdded > 0 {
+			retention += float64(item.Contributor.OwnedLines) * minFloat(float64(item.Contributor.OwnedLines)/float64(item.Contributor.HistoricalAdded), 1)
+		}
+		collaboration += float64(item.Contributor.Reviews*3 + item.Contributor.Issues)
+	}
+	weights := cfg.Weights
+	if workload == 0 {
+		weights.Workload = 0
+	}
+	if ownership == 0 || !cfg.EnableOwnership {
+		weights.Ownership = 0
+	}
+	if retention == 0 || !cfg.EnableRetention {
+		weights.Retention = 0
+	}
+	if collaboration == 0 || !cfg.EnableCollaboration {
+		weights.Collaboration = 0
+	}
+	total := weights.Workload + weights.Ownership + weights.Retention + weights.Collaboration
+	if total > 0 {
+		weights.Workload /= total
+		weights.Ownership /= total
+		weights.Retention /= total
+		weights.Collaboration /= total
+	}
+	return weights
 }
 
 func finalizeCategories(agg *aggregate) []model.CategorySummary {

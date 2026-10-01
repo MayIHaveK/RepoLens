@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Output = "bin/repolens.exe",
-    [string]$Version = "0.1.0-dev",
+    [string]$Version = "0.2.0-dev",
     [switch]$SkipTests
 )
 
@@ -14,8 +14,15 @@ $env:GOMODCACHE = Join-Path $Cache "go-mod"
 Push-Location (Join-Path $Root "web")
 try {
     npm.cmd ci
+    if ($LASTEXITCODE -ne 0) { throw "Frontend dependency installation failed" }
     npm.cmd run check
+    if ($LASTEXITCODE -ne 0) { throw "Frontend type checking failed" }
+    if (-not $SkipTests) {
+        npm.cmd test
+        if ($LASTEXITCODE -ne 0) { throw "Frontend tests failed" }
+    }
     npm.cmd run build
+    if ($LASTEXITCODE -ne 0) { throw "Frontend build failed" }
 }
 finally {
     Pop-Location

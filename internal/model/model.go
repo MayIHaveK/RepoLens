@@ -1,8 +1,12 @@
 package model
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
-const SchemaVersion = 1
+const SchemaVersion = 2
+const AlgorithmVersion = "inventory-2"
 
 type Category string
 
@@ -16,18 +20,21 @@ const (
 )
 
 type Analysis struct {
-	SchemaVersion int               `json:"schemaVersion"`
-	ID            string            `json:"id"`
-	Repository    Repository        `json:"repository"`
-	GeneratedAt   time.Time         `json:"generatedAt"`
-	DurationMS    int64             `json:"durationMs"`
-	Mode          string            `json:"mode"`
-	Config        ConfigSnapshot    `json:"config"`
-	Summary       Summary           `json:"summary"`
-	Contributors  []Contributor     `json:"contributors"`
-	Timeline      []TimelineBucket  `json:"timeline"`
-	Categories    []CategorySummary `json:"categories"`
-	Warnings      []string          `json:"warnings,omitempty"`
+	ProgramVersion   string            `json:"programVersion"`
+	AlgorithmVersion string            `json:"algorithmVersion"`
+	Project          *Project          `json:"project,omitempty"`
+	SchemaVersion    int               `json:"schemaVersion"`
+	ID               string            `json:"id"`
+	Repository       Repository        `json:"repository"`
+	GeneratedAt      time.Time         `json:"generatedAt"`
+	DurationMS       int64             `json:"durationMs"`
+	Mode             string            `json:"mode"`
+	Config           ConfigSnapshot    `json:"config"`
+	Summary          Summary           `json:"summary"`
+	Contributors     []Contributor     `json:"contributors"`
+	Timeline         []TimelineBucket  `json:"timeline"`
+	Categories       []CategorySummary `json:"categories"`
+	Warnings         []string          `json:"warnings,omitempty"`
 }
 
 type Repository struct {
@@ -40,6 +47,8 @@ type Repository struct {
 }
 
 type ConfigSnapshot struct {
+	Effective        json.RawMessage      `json:"effective,omitempty"`
+	EffectiveWeights Weights              `json:"effectiveWeights"`
 	Profile          string               `json:"profile"`
 	Weights          Weights              `json:"weights"`
 	OwnershipEnabled bool                 `json:"ownershipEnabled"`
@@ -100,6 +109,69 @@ type Contributor struct {
 	Categories         map[Category]Change `json:"categories"`
 	TopDirectories     []DirectoryShare    `json:"topDirectories,omitempty"`
 	RecentCommits      []CommitSummary     `json:"recentCommits,omitempty"`
+}
+
+// Project contains local file metadata, never source text or configuration values.
+type Project struct {
+	HistorySkipped  map[string]int64    `json:"historySkipped"`
+	Scope           string              `json:"scope"`
+	Totals          LineCounts          `json:"totals"`
+	SourceCodeLines int64               `json:"sourceCodeLines"`
+	TextFiles       int64               `json:"textFiles"`
+	TotalFiles      int64               `json:"totalFiles"`
+	Skipped         map[string]int64    `json:"skipped"`
+	Files           []FileMetric        `json:"files,omitempty"`
+	Languages       []LanguageSummary   `json:"languages"`
+	Directories     []DirectorySummary  `json:"directories,omitempty"`
+	Dependencies    []Dependency        `json:"dependencies,omitempty"`
+	Configurations  []ConfigurationInfo `json:"configurations,omitempty"`
+	Cycles          [][]string          `json:"cycles,omitempty"`
+	Notes           []string            `json:"notes"`
+}
+
+type LineCounts struct {
+	Total   int64 `json:"total"`
+	Code    int64 `json:"code"`
+	Comment int64 `json:"comment"`
+	Blank   int64 `json:"blank"`
+}
+type FileMetric struct {
+	Path          string     `json:"path"`
+	Category      Category   `json:"category"`
+	Language      string     `json:"language"`
+	Bytes         int64      `json:"bytes"`
+	Lines         LineCounts `json:"lines"`
+	Status        string     `json:"status"`
+	Reason        string     `json:"reason,omitempty"`
+	Commits       int64      `json:"commits"`
+	Additions     int64      `json:"additions"`
+	Deletions     int64      `json:"deletions"`
+	LastChangedAt string     `json:"lastChangedAt,omitempty"`
+}
+type LanguageSummary struct {
+	Language string     `json:"language"`
+	Files    int64      `json:"files"`
+	Lines    LineCounts `json:"lines"`
+}
+type DirectorySummary struct {
+	Path  string     `json:"path"`
+	Files int64      `json:"files"`
+	Lines LineCounts `json:"lines"`
+}
+type Dependency struct {
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Kind     string `json:"kind"`
+	Resolved bool   `json:"resolved"`
+}
+type ConfigurationInfo struct {
+	Path         string   `json:"path"`
+	Format       string   `json:"format"`
+	Keys         []string `json:"keys,omitempty"`
+	ParseStatus  string   `json:"parseStatus"`
+	Dependencies int      `json:"dependencies"`
+	Scripts      int      `json:"scripts"`
+	Issues       []string `json:"issues,omitempty"`
 }
 
 type Change struct {

@@ -9,6 +9,7 @@ go test ./...
 cd web
 npm ci
 npm run check
+npm test
 npm run build
 ```
 

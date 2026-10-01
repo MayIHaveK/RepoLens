@@ -6,11 +6,13 @@ export function DonutChart({ contributors }: { contributors: Contributor[] }) {
   const radius = 70
   const circumference = 2 * Math.PI * radius
   let offset = 0
+  const displayed = contributors.slice(0, 5).map((person) => ({ id: person.id, name: person.name, compositeShare: person.compositeShare }))
+  if (contributors.length > 5) displayed.push({ id: 'remaining', name: `其他 ${contributors.length - 5} 位`, compositeShare: contributors.slice(5).reduce((sum, person) => sum + person.compositeShare, 0) })
   return (
     <div className="donut-wrap">
       <svg className="donut" width="184" height="184" viewBox="0 0 184 184" role="img" aria-label="综合贡献占比">
         <circle cx="92" cy="92" r={radius} fill="none" stroke="#e8ecee" strokeWidth="18" />
-        {contributors.slice(0, 6).map((person, index) => {
+        {displayed.map((person, index) => {
           const length = circumference * person.compositeShare / 100
           const element = (
             <circle key={person.id} cx="92" cy="92" r={radius} fill="none" stroke={colors[index]}
@@ -24,7 +26,7 @@ export function DonutChart({ contributors }: { contributors: Contributor[] }) {
         <text x="92" y="108" textAnchor="middle" className="donut-label">位贡献者</text>
       </svg>
       <div className="donut-legend">
-        {contributors.slice(0, 5).map((person, index) => (
+        {displayed.map((person, index) => (
           <div key={person.id}><i style={{ background: colors[index] }} /><span>{person.name}</span><b>{person.compositeShare.toFixed(1)}%</b></div>
         ))}
       </div>

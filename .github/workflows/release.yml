@@ -26,6 +26,8 @@ jobs:
       - working-directory: web
         run: npm run check
       - working-directory: web
+        run: npm test
+      - working-directory: web
         run: npm run build
       - run: go test ./...
       - name: Build release archives

@@ -23,7 +23,7 @@ import (
 	"github.com/MayIHaveK/RepoLens/internal/storage"
 )
 
-var version = "0.1.0-dev"
+var version = "0.2.0-dev"
 
 func main() {
 	if err := run(os.Args[1:]); err != nil {
@@ -70,6 +70,7 @@ func serve(arguments []string) error {
 		return err
 	}
 	application := server.New(store, slog.Default())
+	application.SetVersion(version)
 	httpServer := &http.Server{
 		Addr: *address, Handler: application.Handler(),
 		ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second,
@@ -91,6 +92,9 @@ func analyze(arguments []string) error {
 	ref := flags.String("ref", "HEAD", "需要分析的 Git 版本")
 	output := flags.String("output", "repolens-analysis.json", "输出的 JSON 文件")
 	profile := flags.String("profile", "balanced", "性能配置：fast、balanced 或 thorough")
+	configPath := flags.String("config", "", "JSON 分析配置文件")
+	since := flags.String("since", "", "开始日期 YYYY-MM-DD / RFC3339")
+	until := flags.String("until", "", "结束日期 YYYY-MM-DD / RFC3339")
 	repository := ""
 	if len(arguments) > 0 && !strings.HasPrefix(arguments[0], "-") {
 		repository = arguments[0]
@@ -109,9 +113,30 @@ func analyze(arguments []string) error {
 		return errors.New("用法：repolens analyze <仓库路径>")
 	}
 	cfg := config.Default()
-	cfg.Ref = *ref
-	cfg.Profile = *profile
-	result, err := analysis.New().Analyze(context.Background(), repository, cfg, func(progress model.Progress) {
+	if *configPath != "" {
+		data, err := os.ReadFile(*configPath)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			return err
+		}
+	}
+	flags.Visit(func(value *flag.Flag) {
+		switch value.Name {
+		case "ref":
+			cfg.Ref = *ref
+		case "profile":
+			cfg.Profile = *profile
+		case "since":
+			cfg.Since = *since
+		case "until":
+			cfg.Until = *until
+		}
+	})
+	analyzer := analysis.New()
+	analyzer.Version = version
+	result, err := analyzer.Analyze(context.Background(), repository, cfg, func(progress model.Progress) {
 		fmt.Printf("\r%-12s %5.1f%%  %s", progress.Phase, progress.Percent, progress.Message)
 	})
 	fmt.Println()

@@ -9,6 +9,7 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -25,6 +26,7 @@ func (c Client) command(ctx context.Context, repository string, args ...string) 
 		"-c", "core.quotepath=false",
 		"-c", "color.ui=false",
 		"-c", "log.showSignature=false",
+		"-c", "core.pager=cat",
 		"--no-pager",
 		"-C", repository,
 	}
@@ -37,6 +39,9 @@ func (c Client) Output(ctx context.Context, repository string, args ...string) (
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		message := strings.TrimSpace(stderr.String())
 		if message == "" {
 			message = err.Error()
@@ -62,6 +67,9 @@ func (c Client) Stream(ctx context.Context, repository string, args []string, co
 		_ = cmd.Process.Kill()
 	}
 	waitErr := cmd.Wait()
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if consumeErr != nil {
 		return consumeErr
 	}
@@ -85,7 +93,7 @@ func (c Client) ResolveRepository(ctx context.Context, repository, ref string) (
 		return "", "", "", "", fmt.Errorf("not a Git repository: %w", err)
 	}
 	root = strings.TrimSpace(string(out))
-	out, err = c.Output(ctx, root, "rev-parse", "--verify", ref+"^{commit}")
+	out, err = c.Output(ctx, root, "rev-parse", "--verify", "--end-of-options", ref+"^{commit}")
 	if err != nil {
 		return "", "", "", "", fmt.Errorf("cannot resolve ref %q: %w", ref, err)
 	}
@@ -96,6 +104,95 @@ func (c Client) ResolveRepository(ctx context.Context, repository, ref string) (
 	}
 	name = filepath.Base(root)
 	return root, sha, name, headDate, nil
+}
+
+// Batch keeps one cat-file process open; callers consume one object at a time.
+type Batch struct {
+	cmd    *exec.Cmd
+	input  io.WriteCloser
+	output *bufio.Reader
+	stderr bytes.Buffer
+	ctx    context.Context
+	check  bool
+}
+
+func (c Client) OpenBatch(ctx context.Context, repository string, check bool) (*Batch, error) {
+	mode := "--batch"
+	if check {
+		mode = "--batch-check"
+	}
+	b := &Batch{cmd: c.command(ctx, repository, "cat-file", mode), ctx: ctx, check: check}
+	var err error
+	b.input, err = b.cmd.StdinPipe()
+	if err != nil {
+		return nil, err
+	}
+	output, err := b.cmd.StdoutPipe()
+	if err != nil {
+		_ = b.input.Close()
+		return nil, err
+	}
+	b.output = bufio.NewReaderSize(output, 128*1024)
+	b.cmd.Stderr = &b.stderr
+	if err := b.cmd.Start(); err != nil {
+		_ = b.input.Close()
+		return nil, err
+	}
+	return b, nil
+}
+
+func (b *Batch) Read(objectID string, maxSize int64) ([]byte, int64, error) {
+	if b.ctx.Err() != nil {
+		return nil, 0, b.ctx.Err()
+	}
+	if len(objectID) != 40 && len(objectID) != 64 {
+		return nil, 0, fmt.Errorf("invalid Git object ID")
+	}
+	for _, char := range objectID {
+		if !strings.ContainsRune("0123456789abcdef", char) {
+			return nil, 0, fmt.Errorf("invalid Git object ID")
+		}
+	}
+	if _, err := io.WriteString(b.input, objectID+"\n"); err != nil {
+		return nil, 0, err
+	}
+	header, err := b.output.ReadString('\n')
+	if err != nil {
+		return nil, 0, err
+	}
+	parts := strings.Fields(header)
+	if len(parts) != 3 || parts[1] != "blob" {
+		return nil, 0, fmt.Errorf("cannot read Git blob")
+	}
+	size, err := strconv.ParseInt(parts[2], 10, 64)
+	if err != nil || size < 0 {
+		return nil, 0, fmt.Errorf("invalid Git blob size")
+	}
+	if b.check {
+		return nil, size, nil
+	}
+	if size > maxSize {
+		if _, err := io.CopyN(io.Discard, b.output, size+1); err != nil {
+			return nil, size, err
+		}
+		return nil, size, fmt.Errorf("Git blob exceeds size limit")
+	}
+	data := make([]byte, size)
+	if _, err := io.ReadFull(b.output, data); err != nil {
+		return nil, size, err
+	}
+	if delimiter, err := b.output.ReadByte(); err != nil || delimiter != '\n' {
+		return nil, size, fmt.Errorf("invalid Git blob delimiter")
+	}
+	return data, size, nil
+}
+
+func (b *Batch) Close() error {
+	_ = b.input.Close()
+	// All requested responses were consumed; prevent a blocked child on parse failure.
+	_ = b.cmd.Process.Kill()
+	_ = b.cmd.Wait()
+	return nil
 }
 
 func ScanLines(reader io.Reader, callback func(string) error) error {

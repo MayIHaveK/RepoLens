@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"mime"
@@ -34,6 +35,7 @@ type Server struct {
 	jobs     map[string]*Job
 	cancels  map[string]context.CancelFunc
 	mu       sync.RWMutex
+	slots    chan struct{}
 }
 
 type Job struct {
@@ -63,7 +65,7 @@ func New(store *storage.Store, logger *slog.Logger) *Server {
 	}
 	return &Server{
 		analyzer: analysis.New(), store: store, logger: logger,
-		jobs: map[string]*Job{}, cancels: map[string]context.CancelFunc{},
+		jobs: map[string]*Job{}, cancels: map[string]context.CancelFunc{}, slots: make(chan struct{}, 1),
 	}
 }
 
@@ -71,6 +73,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.handleHealth)
 	mux.HandleFunc("GET /api/config/default", s.handleDefaultConfig)
+	mux.HandleFunc("POST /api/config/validate", s.handleValidateConfig)
 	mux.HandleFunc("POST /api/jobs", s.handleCreateJob)
 	mux.HandleFunc("GET /api/jobs/{id}", s.handleJob)
 	mux.HandleFunc("DELETE /api/jobs/{id}", s.handleCancelJob)
@@ -80,6 +83,22 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/github/status", s.handleGitHubStatus)
 	mux.Handle("/", s.staticHandler())
 	return s.middleware(mux)
+}
+
+func (s *Server) SetVersion(version string) { s.analyzer.Version = version }
+
+func (s *Server) handleValidateConfig(w http.ResponseWriter, request *http.Request) {
+	var cfg config.Config
+	if err := decodeJSON(w, request, &cfg); err != nil {
+		return
+	}
+	prepared, err := cfg.Prepared()
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	cfg.Normalize()
+	writeJSON(w, http.StatusOK, map[string]any{"config": cfg, "effective": prepared})
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
@@ -102,7 +121,10 @@ func (s *Server) handleCreateJob(w http.ResponseWriter, request *http.Request) {
 	cfg := config.Default()
 	if input.Config != nil {
 		cfg = *input.Config
-		cfg.Normalize()
+	}
+	if err := cfg.Validate(); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 	job := &Job{
 		ID: newID(), Status: "queued", Progress: model.Progress{Phase: "queued", Message: "等待分析", Percent: 0},
@@ -110,15 +132,36 @@ func (s *Server) handleCreateJob(w http.ResponseWriter, request *http.Request) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.mu.Lock()
+	active := 0
+	for id, old := range s.jobs {
+		if old.Status == "queued" || old.Status == "running" {
+			active++
+		} else if time.Since(old.UpdatedAt) > time.Hour {
+			delete(s.jobs, id)
+		}
+	}
+	if active >= 8 {
+		s.mu.Unlock()
+		cancel()
+		writeError(w, http.StatusTooManyRequests, "任务队列已满，请稍后重试")
+		return
+	}
 	s.jobs[job.ID] = job
 	s.cancels[job.ID] = cancel
+	copy := *job
 	s.mu.Unlock()
 	go s.runJob(ctx, job.ID, input.RepositoryPath, cfg)
-	writeJSON(w, http.StatusAccepted, job)
+	writeJSON(w, http.StatusAccepted, &copy)
 }
 
 func (s *Server) runJob(ctx context.Context, jobID, repository string, cfg config.Config) {
 	defer s.releaseJob(jobID)
+	select {
+	case s.slots <- struct{}{}:
+		defer func() { <-s.slots }()
+	case <-ctx.Done():
+		return
+	}
 	s.updateJob(jobID, func(job *Job) {
 		if job.Status != "cancelled" {
 			job.Status = "running"
@@ -178,8 +221,19 @@ func (s *Server) runJob(ctx context.Context, jobID, repository string, cfg confi
 	}
 	if err := s.store.Save(result); err != nil {
 		s.logger.Error("save analysis", "job", jobID, "error", err)
+		s.updateJob(jobID, func(job *Job) {
+			if job.Status == "cancelled" {
+				return
+			}
+			job.Status = "failed"
+			job.Error = "分析结果保存失败，请检查缓存目录权限和可用空间"
+		})
+		return
 	}
 	s.updateJob(jobID, func(job *Job) {
+		if job.Status == "cancelled" {
+			return
+		}
 		job.Status = "complete"
 		job.AnalysisID = result.ID
 		job.Progress = model.Progress{Phase: "complete", Message: "分析完成", Current: 1, Total: 1, Percent: 100}
@@ -188,6 +242,9 @@ func (s *Server) runJob(ctx context.Context, jobID, repository string, cfg confi
 
 func (s *Server) releaseJob(id string) {
 	s.mu.Lock()
+	if cancel := s.cancels[id]; cancel != nil {
+		cancel()
+	}
 	delete(s.cancels, id)
 	s.mu.Unlock()
 }
@@ -342,6 +399,10 @@ func decodeJSON(w http.ResponseWriter, request *http.Request, target any) error 
 	if err := decoder.Decode(target); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON request")
 		return err
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "请求只能包含一个 JSON 对象")
+		return fmt.Errorf("trailing JSON data")
 	}
 	return nil
 }

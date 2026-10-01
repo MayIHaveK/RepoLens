@@ -19,6 +19,21 @@ func TestGlobMatcher(t *testing.T) {
 	}
 }
 
+func TestNestedLockFilesAndRootTests(t *testing.T) {
+	classifier := NewClassifier(config.Default())
+	for _, path := range []string{"web/package-lock.json", "apps/site/pnpm-lock.yaml", "nested/file.lock", "assets/scripts/app.min.js"} {
+		if !classifier.Classify(path).Ignored {
+			t.Fatalf("nested file not filtered: %s", path)
+		}
+	}
+	if classifier.Classify("tests/sample.py").Category != model.CategoryTest {
+		t.Fatal("root test directory misclassified")
+	}
+	if classifier.Classify("go.mod").Category != model.CategoryConfig {
+		t.Fatal("module config misclassified")
+	}
+}
+
 func TestClassifier(t *testing.T) {
 	c := NewClassifier(config.Default())
 	if got := c.Classify("internal/server/server_test.go"); got.Category != model.CategoryTest || got.Ignored {

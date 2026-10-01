@@ -28,23 +28,32 @@ func (a *Analyzer) scanTree(ctx context.Context, repository, ref string, cfg con
 				if ok {
 					agg.files++
 					classification := classifier.Classify(file.path)
-					category := agg.categories[classification.Category]
-					if category == nil {
-						category = &model.CategorySummary{Category: classification.Category}
-						agg.categories[classification.Category] = category
+					metric := agg.fileChanges[file.path]
+					metric.Path = file.path
+					metric.Bytes = file.size
+					metric.Category = classification.Category
+					metric.Language = languageFor(file.path)
+					metric.Status = "pending"
+					if file.mode == "120000" {
+						classification.Ignored = true
+						classification.Reason = "symlink"
 					}
-					category.Files++
-					if classification.Ignored || file.size > cfg.MaxFileSizeBytes {
+					if file.size > cfg.MaxFileSizeBytes {
+						classification.Ignored = true
+						classification.Reason = "oversized"
+					}
+					if classification.Ignored {
 						agg.skipped++
+						metric.Status = "skipped"
+						metric.Reason = classification.Reason
+						agg.project.Skipped[metric.Reason]++
 					} else {
 						file.category = classification.Category
 						agg.eligible++
-						if len(files) < cfg.MaxOwnershipFiles {
-							files = append(files, file)
-						} else {
-							agg.skipped++
-						}
+						files = append(files, file)
 					}
+					agg.project.Files = append(agg.project.Files, metric)
+					agg.fileChanges[file.path] = metric
 				}
 			}
 			if err == io.EOF {
@@ -69,7 +78,7 @@ func parseTreeRecord(record string) (treeFile, bool) {
 	if err != nil {
 		return treeFile{}, false
 	}
-	return treeFile{path: filePath, objectID: parts[2], size: size}, true
+	return treeFile{path: filePath, objectID: parts[2], size: size, mode: parts[0]}, true
 }
 
 func (a *Analyzer) scanOwnership(ctx context.Context, repository, ref string, cfg config.Config, files []treeFile, agg *aggregate, progress ProgressFunc) {

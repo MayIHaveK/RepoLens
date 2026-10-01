@@ -1,4 +1,5 @@
-import type { Analysis, Config, Job, Privacy } from './types'
+import type { Analysis, Config, Job, Privacy, RecentAnalysis } from './types'
+import { downloadBlob } from './download'
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options)
@@ -11,7 +12,10 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   defaultConfig: () => request<Config>('/api/config/default'),
-  recent: () => request<Analysis[]>('/api/analyses'),
+  recent: () => request<RecentAnalysis[]>('/api/analyses'),
+  validateConfig: (config: unknown) => request<{ config: Config; effective: Config }>('/api/config/validate', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config),
+  }),
   createJob: (repositoryPath: string, config: Config) =>
     request<Job>('/api/jobs', {
       method: 'POST',
@@ -29,11 +33,6 @@ export const api = {
     })
     if (!response.ok) throw new Error('无法生成离线报告')
     const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = 'repolens-report.html'
-    anchor.click()
-    URL.revokeObjectURL(url)
+    downloadBlob(blob, 'repolens-report.html')
   },
 }

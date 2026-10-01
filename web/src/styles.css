@@ -234,7 +234,7 @@ textarea { min-height: 145px; padding: 9px; resize: vertical; font: 10px/1.55 Co
 @media (max-width: 760px) {
   .app-shell { display: block; }
   .topbar { position: relative; grid-template-columns: 1fr auto; padding: 0 12px; }
-  .main-tabs { position: fixed; bottom: 0; left: 0; right: 0; height: 54px; z-index: 30; background: #fff; border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(4,1fr); }
+  .main-tabs { position: fixed; bottom: 0; left: 0; right: 0; height: 54px; z-index: 30; background: #fff; border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(5,1fr); }
   .main-tabs button { padding: 0; justify-content: center; flex-direction: column; gap: 2px; font-size: 9px; }.main-tabs button.active::after{top:0;bottom:auto}
   .top-actions .local-status, .top-actions .icon-button, .export-button { display: none; }
   .sidebar { min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding: 15px 12px; }
@@ -246,3 +246,29 @@ textarea { min-height: 145px; padding: 9px; resize: vertical; font: 10px/1.55 Co
   .category-row { grid-template-columns: 110px minmax(80px,1fr) 60px; }.category-row > div:first-child b{display:none}
   .settings-view { border-left: 0; border-right: 0; }.settings-header{padding:18px 15px}.settings-section{grid-template-columns:1fr;padding:20px 15px;gap:17px}.settings-grid,.textareas{grid-template-columns:1fr}.toggle-list.two-columns,.modal-options{grid-template-columns:1fr}
 }
+
+.scope-hint { margin: 0; font-size: 10px; line-height: 1.7; color: var(--muted); }
+.scope-banner { padding: 14px 18px; border: 1px solid #c9e5e1; background: #eff9f8; display: grid; gap: 5px; font-size: 12px; line-height: 1.7; margin-bottom: 18px; }
+.project-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); padding: 10px 14px; flex-wrap: wrap; }
+.project-tabs button { background: transparent; border: 0; padding: 10px 14px; color: var(--muted); cursor: pointer; font-size: 12px; }
+.project-tabs button.active { color: var(--teal-dark); background: var(--teal-soft); border-radius: 5px; font-weight: 650; }
+.project-toolbar { display: flex; gap: 10px; padding: 14px 18px; align-items: center; flex-wrap: wrap; }
+.project-toolbar input, .project-toolbar select { border: 1px solid #ccd3d8; border-radius: 5px; padding: 8px 10px; min-width: 0; background: white; font-size: 12px; }
+.project-toolbar input { flex: 1; min-width: 170px; }
+.project-toolbar > span { color: var(--muted); font-size: 12px; }
+.path-link { border: 0; background: transparent; color: var(--teal-dark); cursor: pointer; text-align: left; font-size: inherit; padding: 0; }
+.path-link:hover { text-decoration: underline; }
+.wrap-cell { white-space: normal; min-width: 200px; max-width: 420px; line-height: 1.6; overflow-wrap: anywhere; }
+.pagination { padding: 14px 18px; display: flex; align-items: center; gap: 12px; justify-content: flex-end; font-size: 12px; border-top: 1px solid var(--line); }
+.analysis-notes { margin-top: 18px; padding: 18px 20px; color: var(--muted); font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.analysis-notes summary { color: var(--ink); font-weight: 650; cursor: pointer; }
+.analysis-notes pre { max-height: 360px; overflow: auto; background: #f5f7f8; padding: 12px; font-size: 11px; }
+.warning-strip ul { margin: 0; padding-left: 16px; line-height: 1.7; }
+.file-detail { margin-top: 18px; }
+.file-detail p, .file-detail ul { margin: 16px 20px; font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.config-actions { padding: 15px 25px; display: flex; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid var(--line); align-items: center; }
+.config-actions > span { flex: 1 1 280px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.file-input { width: 1px; height: 1px; position: absolute; opacity: 0; }
+.config-message { margin: 12px 25px; font-size: 12px; color: var(--teal-dark); }
+.effective-config { color: var(--muted); line-height: 1.7; font-size: 11px; }
+@media (min-width: 761px) and (max-width: 1250px) { .main-tabs button { padding: 0 9px; } .main-tabs button svg { display: none; } .top-actions .local-status { display: none; } }

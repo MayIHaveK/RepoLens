@@ -1,12 +1,13 @@
 .PHONY: dev test build web clean
 
-VERSION ?= 0.1.0-dev
+VERSION ?= 0.2.0-dev
 
 dev:
 	go run ./cmd/repolens serve
 
 test:
 	go test ./...
+	cd web && npm test
 
 web:
 	cd web && npm ci && npm run build
